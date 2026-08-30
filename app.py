@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from flask import Flask, flash, redirect, render_template, request, send_file, session, url_for, Response, jsonify, has_request_context
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
-from models import db, Admin, Card, Transaction, Notification, PushSubscription, MembershipType, generate_unique_code, init_db
+from models import db, Admin, Card, Transaction, Notification, PushSubscription, MembershipType, Product, generate_unique_code, init_db
 from utils import get_logger, generate_qr_image, generate_deep_link, sanitize_input, generate_whatsapp_image
 from dotenv import load_dotenv
 
@@ -1020,6 +1020,106 @@ def create_app():
         flash("Notificacion eliminada", "success")
         return redirect(url_for("notifications"))
 
+    # ===== INVENTARIO =====
+    def save_product_image(file_storage):
+        """Guarda una foto de producto subida desde el dispositivo y devuelve su URL pública."""
+        import uuid
+        from werkzeug.utils import secure_filename
+
+        ALLOWED_EXT = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+        filename = secure_filename(file_storage.filename or '')
+        ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else 'png'
+        if ext not in ALLOWED_EXT:
+            ext = 'png'
+        unique_name = f"prod_{uuid.uuid4().hex[:12]}.{ext}"
+        upload_dir = os.path.join(app.static_folder, 'inventory_images')
+        os.makedirs(upload_dir, exist_ok=True)
+        file_storage.save(os.path.join(upload_dir, unique_name))
+        base = get_public_base_url()
+        return f"{base}/static/inventory_images/{unique_name}"
+
+    @app.route("/inventory", methods=["GET", "POST"])
+    def inventory():
+        """Gestión del inventario del negocio (productos con foto, stock y precios)."""
+        if not session.get("admin_id"): return redirect(url_for("login"))
+
+        if request.method == "POST":
+            name = sanitize_input(request.form.get("name", ""))
+            description = sanitize_input(request.form.get("description", ""))
+            cost = float(request.form.get("cost") or 0)
+            price = float(request.form.get("price") or 0)
+            quantity = int(request.form.get("quantity") or 0)
+            reorder_point = int(request.form.get("reorder_point") or 0)
+
+            image_url = None
+            uploaded_image = request.files.get("image_file")
+            if uploaded_image and uploaded_image.filename:
+                image_url = save_product_image(uploaded_image)
+
+            if not name:
+                flash("El nombre del producto es obligatorio", "error")
+            else:
+                product = Product(
+                    name=name,
+                    description=description or None,
+                    cost=cost,
+                    price=price,
+                    quantity=quantity,
+                    reorder_point=reorder_point,
+                    image_url=image_url
+                )
+                db.session.add(product)
+                db.session.commit()
+                flash(f"Producto '{name}' agregado al inventario", "success")
+                return redirect(url_for("inventory"))
+
+        products = Product.query.order_by(Product.created_at.desc()).all()
+        out_of_stock = sum(1 for p in products if p.quantity <= 0)
+        low_stock = sum(1 for p in products if p.quantity > 0 and p.quantity <= p.reorder_point)
+        return render_template("inventory.html", products=products,
+                               out_of_stock=out_of_stock, low_stock=low_stock)
+
+    @app.route("/inventory/<int:product_id>/edit", methods=["POST"])
+    def edit_product(product_id):
+        """Editar un producto del inventario."""
+        if not session.get("admin_id"): return redirect(url_for("login"))
+        product = Product.query.filter_by(id=product_id).first_or_404()
+
+        product.name = sanitize_input(request.form.get("name", product.name))
+        product.description = sanitize_input(request.form.get("description", "")) or None
+        product.cost = float(request.form.get("cost") or 0)
+        product.price = float(request.form.get("price") or 0)
+        product.quantity = int(request.form.get("quantity") or 0)
+        product.reorder_point = int(request.form.get("reorder_point") or 0)
+
+        uploaded_image = request.files.get("image_file")
+        if uploaded_image and uploaded_image.filename:
+            product.image_url = save_product_image(uploaded_image)
+
+        db.session.commit()
+        flash(f"Producto '{product.name}' actualizado", "success")
+        return redirect(url_for("inventory"))
+
+    @app.route("/inventory/<int:product_id>/adjust", methods=["POST"])
+    def adjust_product_quantity(product_id):
+        """Ajustar el stock de un producto (+/-)."""
+        if not session.get("admin_id"): return redirect(url_for("login"))
+        product = Product.query.filter_by(id=product_id).first_or_404()
+        delta = int(request.form.get("delta") or 0)
+        product.quantity = max(0, product.quantity + delta)
+        db.session.commit()
+        flash(f"Stock de '{product.name}' actualizado", "success")
+        return redirect(url_for("inventory"))
+
+    @app.route("/inventory/<int:product_id>/delete", methods=["POST"])
+    def delete_product(product_id):
+        """Eliminar un producto del inventario."""
+        if not session.get("admin_id"): return redirect(url_for("login"))
+        product = Product.query.filter_by(id=product_id).first_or_404()
+        db.session.delete(product)
+        db.session.commit()
+        flash(f"Producto '{product.name}' eliminado", "success")
+        return redirect(url_for("inventory"))
 
     @app.route("/qr/<code>")
     def card_qr(code):

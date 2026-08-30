@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+
+{% block title %}Inventario · Júbilo{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>📦 Inventario</h1>
+    <p class="muted">Agrega tus productos con foto, stock y precios. La tarjeta te avisa cuándo comprar más.</p>
+</div>
+
+<div class="stats" style="margin-top: 0;">
+    <div class="stat-card">
+        <div class="stat-value">{{ products|length }}</div>
+        <div class="stat-label">Productos</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ out_of_stock }}</div>
+        <div class="stat-label">Agotados</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ low_stock }}</div>
+        <div class="stat-label">Por reponer</div>
+    </div>
+</div>
+
+<!-- Formulario para agregar producto -->
+<div class="auth-card" style="max-width: 760px; margin: 20px auto; text-align: left;">
+    <h3 style="text-align: center; margin-bottom: 1rem;">➕ Agregar producto</h3>
+    <form method="POST" action="{{ url_for('inventory') }}" class="form" enctype="multipart/form-data">
+        <label>Nombre del producto
+            <input type="text" name="name" required maxlength="140"
+                   placeholder="Ej. Café de olla, Pan dulce, Refresco...">
+        </label>
+
+        <label>Descripción (opcional)
+            <textarea name="description" rows="2" maxlength="500"
+                      placeholder="Detalles del producto"></textarea>
+        </label>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <label>Coste ($)
+                <input type="number" name="cost" step="0.01" min="0" value="0" placeholder="0.00">
+                <small class="muted">Lo que cuesta comprarlo</small>
+            </label>
+            <label>Precio de venta ($)
+                <input type="number" name="price" step="0.01" min="0" value="0" placeholder="0.00">
+                <small class="muted">Lo que pagas por él</small>
+            </label>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <label>Cantidad en stock
+                <input type="number" name="quantity" min="0" value="0" placeholder="Ej. 10">
+            </label>
+            <label>Comprar más cuando queden
+                <input type="number" name="reorder_point" min="0" value="0" placeholder="Ej. 3">
+                <small class="muted">Punto mínimo de reorden</small>
+            </label>
+        </div>
+
+        <label>Foto del producto
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <input type="file" name="image_file" id="image_file" accept="image/*"
+                       onchange="previewProductImage(this)" style="flex: 1; min-width: 200px;">
+                <button type="button" class="btn btn-sm" onclick="document.getElementById('image_file').click()" style="flex: 0;">
+                    📷 Tomar foto / Elegir
+                </button>
+            </div>
+            <small class="muted">En el celular puedes <strong>tomar la foto con la cámara</strong> o elegirla de la galería.</small>
+        </label>
+        <div id="imagePreview" style="display:none; text-align:center; margin-top: 8px;">
+            <img id="imagePreviewImg" src="" alt="Vista previa"
+                 style="max-width: 100%; max-height: 180px; border-radius: 8px; border: 1px solid var(--border);">
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block">💾 Guardar producto</button>
+    </form>
+</div>
+
+<!-- Grid de productos -->
+{% if products %}
+<h3 style="margin-top: 30px;">📋 Productos</h3>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; margin-top: 15px;">
+    {% for p in products %}
+    {% set low_stock = p.quantity > 0 and p.quantity <= p.reorder_point %}
+    {% set out_stock = p.quantity <= 0 %}
+    {% set status_color = '#e74c3c' if out_stock else ('#f39c12' if low_stock else '#27ae60') %}
+    <div style="border-radius: 16px; overflow: hidden; border: 2px solid var(--border); background: var(--card); box-shadow: 0 4px 15px rgba(0,0,0,0.25); display: flex; flex-direction: column; position: relative;">
+        <!-- Foto -->
+        <div style="height: 160px; background: var(--bg); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative;">
+            {% if p.image_url %}
+            <img src="{{ p.image_url }}" alt="{{ p.name }}" style="width: 100%; height: 100%; object-fit: cover;">
+            {% else %}
+            <span style="font-size: 3rem; opacity: 0.4;">📦</span>
+            {% endif %}
+            <!-- Estado -->
+            <div style="position: absolute; top: 10px; right: 10px; background: {{ status_color }}; color: white; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">
+                {% if out_stock %}🚫 Agotado{% elif low_stock %}⚠️ Comprar más{% else %}✅ En stock{% endif %}
+            </div>
+        </div>
+
+        <!-- Cuerpo -->
+        <div style="padding: 15px; flex: 1; display: flex; flex-direction: column;">
+            <h4 style="margin: 0 0 4px; font-size: 1.05rem;">{{ p.name }}</h4>
+            {% if p.description %}
+            <p style="margin: 0 0 8px; font-size: 0.8rem; color: var(--muted);">{{ p.description }}</p>
+            {% endif %}
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <span style="font-size: 1.2rem; font-weight: bold; color: var(--text);">${{ "%.2f"|format(p.price) }}</span>
+                {% if p.cost > 0 %}
+                <span style="font-size: 0.75rem; color: var(--muted);">Coste: ${{ "%.2f"|format(p.cost) }}</span>
+                {% endif %}
+            </div>
+
+            <!-- Cantidad -->
+            <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px; text-align: center; margin-bottom: 10px;">
+                <div style="font-size: 0.75rem; color: var(--muted);">Cantidad que queda</div>
+                <div style="font-size: 1.6rem; font-weight: bold; color: {{ status_color }};">{{ p.quantity }}</div>
+                <div style="font-size: 0.75rem; color: var(--muted);">
+                    {% if out_stock %}
+                    🔴 Sin existencias
+                    {% elif low_stock %}
+                    🟠 Quedan pocas — compra más (mín. {{ p.reorder_point }})
+                    {% else %}
+                    🟢 Stock suficiente
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Ajuste rápido de stock -->
+            <div style="display: flex; gap: 6px; margin-bottom: 10px;">
+                <form method="POST" action="{{ url_for('adjust_product_quantity', product_id=p.id) }}" style="flex: 1;">
+                    <input type="hidden" name="delta" value="-1">
+                    <button type="submit" class="btn btn-sm" style="width: 100%;">−1</button>
+                </form>
+                <form method="POST" action="{{ url_for('adjust_product_quantity', product_id=p.id) }}" style="flex: 1;">
+                    <input type="hidden" name="delta" value="1">
+                    <button type="submit" class="btn btn-sm btn-primary" style="width: 100%;">+1</button>
+                </form>
+            </div>
+
+            <!-- Acciones -->
+            <div style="display: flex; gap: 6px; margin-top: auto;">
+                <button type="button" class="btn btn-sm" style="flex: 1;" onclick="openEditModal({{ p.id }})">✏️ Editar</button>
+                <form method="POST" action="{{ url_for('delete_product', product_id=p.id) }}" style="flex: 0;"
+                      onsubmit="return confirm('¿Eliminar el producto {{ p.name }}?');">
+                    <button type="submit" class="btn btn-sm btn-danger">🗑️</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="auth-card" style="max-width: 500px; margin: 30px auto;">
+    <p class="muted">No hay productos en el inventario. Agrega el primero desde el formulario.</p>
+</div>
+{% endif %}
+
+<!-- Modal de edición -->
+<div id="editModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.8); z-index:3000; align-items:center; justify-content:center; overflow-y:auto;">
+    <div style="background:var(--card); border-radius:16px; padding:2rem; max-width:600px; width:90%; position:relative; border: 2px solid var(--border); margin: 20px auto; max-height: 90vh; overflow-y: auto;">
+        <button onclick="closeEditModal()" style="position:absolute; top:10px; right:15px; background:none; border:none; color:white; font-size:1.5rem; cursor:pointer;">✕</button>
+        <h3 style="margin-bottom: 1rem;">✏️ Editar producto</h3>
+        <form method="POST" id="editForm" class="form" enctype="multipart/form-data">
+            <label>Nombre
+                <input type="text" name="name" id="editName" required maxlength="140">
+            </label>
+            <label>Descripción
+                <textarea name="description" id="editDesc" rows="2" maxlength="500"></textarea>
+            </label>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <label>Coste ($)
+                    <input type="number" name="cost" id="editCost" step="0.01" min="0">
+                </label>
+                <label>Precio de venta ($)
+                    <input type="number" name="price" id="editPrice" step="0.01" min="0">
+                </label>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <label>Cantidad
+                    <input type="number" name="quantity" id="editQuantity" min="0">
+                </label>
+                <label>Comprar más cuando queden
+                    <input type="number" name="reorder_point" id="editReorder" min="0">
+                </label>
+            </div>
+            <label>Foto (opcional)
+                <input type="file" name="image_file" accept="image/*">
+                <small class="muted">Si no eliges una nueva, se conserva la actual.</small>
+            </label>
+            <div style="margin-top: 20px; display: flex; gap: 10px;">
+                <button type="submit" class="btn btn-primary" style="flex: 1;">💾 Guardar</button>
+                <button type="button" class="btn" onclick="closeEditModal()">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// Vista previa de imagen al agregar producto
+function previewProductImage(input) {
+    const preview = document.getElementById('imagePreview');
+    const img = document.getElementById('imagePreviewImg');
+    const file = input.files && input.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            img.src = e.target.result;
+            preview.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+    } else {
+        preview.style.display = 'none';
+        img.src = '';
+    }
+}
+
+// Datos de productos para el modal de edición (inyectados desde el servidor)
+const productsData = [
+    {% for p in products %}
+    {
+        id: {{ p.id }},
+        name: {{ p.name|tojson }},
+        description: {{ (p.description or '')|tojson }},
+        cost: {{ p.cost }},
+        price: {{ p.price }},
+        quantity: {{ p.quantity }},
+        reorder_point: {{ p.reorder_point }}
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+];
+
+function openEditModal(id) {
+    const p = productsData.find(x => x.id === id);
+    if (!p) return;
+    document.getElementById('editForm').action = '/inventory/' + id + '/edit';
+    document.getElementById('editName').value = p.name;
+    document.getElementById('editDesc').value = p.description;
+    document.getElementById('editCost').value = p.cost;
+    document.getElementById('editPrice').value = p.price;
+    document.getElementById('editQuantity').value = p.quantity;
+    document.getElementById('editReorder').value = p.reorder_point;
+    document.getElementById('editModal').style.display = 'flex';
+}
+
+function closeEditModal() {
+    document.getElementById('editModal').style.display = 'none';
+}
+</script>
+{% endblock %}

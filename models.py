@@ -214,6 +214,40 @@ class PushSubscription(db.Model):
         }
 
 
+class Product(db.Model):
+    """Modelo de producto para el inventario del negocio"""
+    __tablename__ = 'products'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(140), nullable=False)
+    description = db.Column(db.String(500), nullable=True)
+    cost = db.Column(db.Float, nullable=False, default=0)          # Coste (lo que cuesta comprarlo)
+    price = db.Column(db.Float, nullable=False, default=0)         # Precio de venta
+    quantity = db.Column(db.Integer, nullable=False, default=0)    # Cantidad en stock
+    reorder_point = db.Column(db.Integer, nullable=False, default=0)  # Mínimo: cuándo comprar más
+    image_url = db.Column(db.String(500), nullable=True)           # Foto del producto
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self) -> dict:
+        """Serializa a dict"""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'cost': self.cost,
+            'price': self.price,
+            'quantity': self.quantity,
+            'reorder_point': self.reorder_point,
+            'image_url': self.image_url,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+    def __str__(self) -> str:
+        return f"Product({self.id}, {self.name})"
+
+
 def init_db(app) -> None:
     """Inicializa base de datos y crea admin por defecto"""
     with app.app_context():
