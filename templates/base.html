@@ -71,19 +71,21 @@
 
     {% block extra_js %}{% endblock %}
 
-    {% if has_onesignal %}
-    <!-- OneSignal SDK (Alojado Localmente) -->
-    <script src="{{ url_for('static', filename='sdk/OneSignalSDK.page.js') }}" defer></script>
+    <!-- OneSignal SDK -->
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
     <script>
         window.OneSignalDeferred = window.OneSignalDeferred || [];
         OneSignalDeferred.push(async function(OneSignal) {
             try {
                 console.log('Inicializando OneSignal...');
                 await OneSignal.init({
-                    appId: "{{ onesignal_app_id }}",
-                    {% if onesignal_safari_web_id %}safari_web_id: "{{ onesignal_safari_web_id }}",{% endif %}
+                    appId: "a278cbdd-df95-470a-a7ad-f4e0f34ee170",
+                    safari_web_id: "web.onesignal.auto.1f1e5b5b-9f41-4253-8171-f20d7e1a840b",
                     serviceWorkerParam: { scope: '/' },
                     serviceWorkerPath: '/OneSignalSDKWorker.js',
+                    notifyButton: {
+                        enable: true,
+                    },
                     promptOptions: {
                         slidedown: {
                             prompts: [{
@@ -115,7 +117,6 @@
             }
         });
     </script>
-    {% endif %}
 
     <!-- Control del Menú Lateral -->
     <script>
