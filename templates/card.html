@@ -405,15 +405,12 @@ async function updatePushButtonUI() {
 }
 
 async function togglePushNotifications() {
-    // Esperar a que jubiloPush esté listo (hasta 5 segundos)
-    let attempts = 0;
-    while (!window.jubiloPush || !window.jubiloPush.requestPushPermissionAndSubscribe) {
-        if (attempts > 10) {
-            alert('⏳ OneSignal aún no está listo. Recarga la página e intenta de nuevo.');
-            return;
-        }
-        await new Promise(r => setTimeout(r, 500));
-        attempts++;
+    // jubiloPush ya existe desde el inicio (definido en base.html).
+    // getSubscriptionState / requestPushPermissionAndSubscribe esperan internamente
+    // a que OneSignal esté listo.
+    if (!window.jubiloPush) {
+        alert('⏳ El sistema de notificaciones aún se está cargando. Recarga la página e intenta de nuevo.');
+        return;
     }
     
     const btn = document.getElementById('enablePushBtn');

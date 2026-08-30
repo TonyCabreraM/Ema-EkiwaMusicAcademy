@@ -113,16 +113,12 @@ async function updatePushButtonUI() {
     const status = document.getElementById('pushStatus');
     if (!btn || !status) return;
 
-    // Esperar a que jubiloPush esté listo (hasta 5 segundos)
-    let attempts = 0;
-    while (!window.jubiloPush || window.jubiloPush.getSubscriptionState === undefined) {
-        if (attempts > 10) {
-            btn.style.display = 'none';
-            status.textContent = '⏳ OneSignal no respondió. Recarga la página.';
-            return;
-        }
-        await new Promise(r => setTimeout(r, 500));
-        attempts++;
+    // jubiloPush existe desde el inicio (definido en base.html) y espera
+    // internamente a que OneSignal esté listo.
+    if (!window.jubiloPush) {
+        btn.style.display = 'none';
+        status.textContent = '⏳ OneSignal no respondió. Recarga la página.';
+        return;
     }
 
     const state = await window.jubiloPush.getSubscriptionState();

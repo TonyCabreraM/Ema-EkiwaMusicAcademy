@@ -75,6 +75,79 @@
     <!-- OneSignal SDK (Alojado Localmente) -->
     <script src="{{ url_for('static', filename='sdk/OneSignalSDK.page.js') }}" defer></script>
     <script>
+        // Exponer jubiloPush INMEDIATAMENTE (antes de que OneSignal termine de inicializar)
+        // para que los botones puedan llamarlo sin errores de "undefined".
+        window.jubiloPush = {
+            _ready: false,
+            _onesignal: null,
+            _waiters: [],
+
+            // Se llama cuando OneSignal está listo
+            init: function(OneSignal) {
+                this._onesignal = OneSignal;
+                this._ready = true;
+                console.log('jubiloPush listo');
+                // Notificar a los que esperaban
+                this._waiters.forEach(function(resolve) { resolve(); });
+                this._waiters = [];
+                if (window.updatePushButtonUI) window.updatePushButtonUI();
+            },
+
+            // Espera a que OneSignal esté listo (hasta N ms)
+            _waitReady: function(timeoutMs) {
+                var self = this;
+                return new Promise(function(resolve) {
+                    if (self._ready) { resolve(); return; }
+                    var timer = setTimeout(function() { resolve(); }, timeoutMs || 5000);
+                    self._waiters.push(function() {
+                        clearTimeout(timer);
+                        resolve();
+                    });
+                });
+            },
+
+            // Método correcto según docs de OneSignal: optIn() maneja
+            // tanto el caso de ya-token (suscribe) como el de sin-token (muestra prompt).
+            requestPushPermissionAndSubscribe: async function() {
+                await this._waitReady(5000);
+                if (!this._ready || !this._onesignal) return false;
+                try {
+                    await this._onesignal.User.PushSubscription.optIn();
+                    return await this._onesignal.User.PushSubscription.isSubscribed();
+                } catch (e) {
+                    console.error('Error OneSignal optIn:', e);
+                    return false;
+                }
+            },
+
+            unsubscribePush: async function() {
+                await this._waitReady(5000);
+                if (!this._ready || !this._onesignal) return;
+                await this._onesignal.User.PushSubscription.optOut();
+            },
+
+            getSubscriptionState: async function() {
+                await this._waitReady(5000);
+                if (!this._ready || !this._onesignal) return 'loading';
+                try {
+                    const subscribed = await this._onesignal.User.PushSubscription.isSubscribed();
+                    if (!subscribed) {
+                        if (Notification.permission === 'denied') {
+                            return 'denied';
+                        }
+                        return 'inactive';
+                    }
+                    return 'active';
+                } catch (e) {
+                    console.warn('Error obteniendo estado de suscripción:', e);
+                    if (Notification.permission === 'denied') {
+                        return 'denied';
+                    }
+                    return 'inactive';
+                }
+            }
+        };
+
         window.OneSignalDeferred = window.OneSignalDeferred || [];
         OneSignalDeferred.push(async function(OneSignal) {
             try {
@@ -89,13 +162,10 @@
                     },
                 });
                 console.log('OneSignal inicializado correctamente');
-                
+
                 // Verificar estado de suscripción
                 const isSubscribed = await OneSignal.User.PushSubscription.isSubscribed();
                 console.log('Estado de suscripción:', isSubscribed ? 'Suscrito' : 'No suscrito');
-                
-                // Log de la configuración del Service Worker
-                console.log('Service Worker configurado en:', '/OneSignalSDKWorker.js');
 
                 // ===== AUTO-PROMPT DE SUSCRIPCIÓN =====
                 // Si el usuario no está suscrito y no ha sido preguntado en esta sesión,
@@ -105,7 +175,7 @@
                     setTimeout(async () => {
                         try {
                             console.log('Solicitando permiso de notificaciones automáticamente...');
-                            await OneSignal.Notifications.requestPermission(true);
+                            await OneSignal.User.PushSubscription.optIn();
                             const nowSubscribed = await OneSignal.User.PushSubscription.isSubscribed();
                             console.log('Resultado auto-prompt:', nowSubscribed ? 'Suscrito' : 'No suscrito');
                             if (window.updatePushButtonUI) window.updatePushButtonUI();
@@ -117,60 +187,6 @@
             } catch (e) {
                 console.error('Error al inicializar OneSignal:', e);
             }
-            
-            // Exponer funciones para la UI
-            window.jubiloPush = {
-                _ready: false,
-                _onesignal: null,
-                
-                init: function(OneSignal) {
-                    this._onesignal = OneSignal;
-                    this._ready = true;
-                    console.log('jubiloPush listo');
-                    if (window.updatePushButtonUI) window.updatePushButtonUI();
-                },
-
-                requestPushPermissionAndSubscribe: async function() {
-                    if (!this._ready || !this._onesignal) return false;
-                    try {
-                        const isSubscribed = await this._onesignal.User.PushSubscription.isSubscribed();
-                        if (!isSubscribed) {
-                            await this._onesignal.Notifications.requestPermission(true);
-                        }
-                        return await this._onesignal.User.PushSubscription.isSubscribed();
-                    } catch (e) {
-                        console.error('Error OneSignal:', e);
-                        return false;
-                    }
-                },
-                
-                unsubscribePush: async function() {
-                    if (!this._ready || !this._onesignal) return;
-                    await this._onesignal.User.PushSubscription.optOut();
-                },
-                
-                getSubscriptionState: async function() {
-                    if (!this._ready || !this._onesignal) return 'loading';
-                    try {
-                        const subscribed = await this._onesignal.User.PushSubscription.isSubscribed();
-                        // OneSignal también puede tener notificaciones bloqueadas en el navegador
-                        if (!subscribed) {
-                            // Verificar si el permiso fue denegado
-                            if (Notification.permission === 'denied') {
-                                return 'denied';
-                            }
-                            return 'inactive';
-                        }
-                        return 'active';
-                    } catch (e) {
-                        console.warn('Error obteniendo estado de suscripción:', e);
-                        if (Notification.permission === 'denied') {
-                            return 'denied';
-                        }
-                        return 'inactive';
-                    }
-                }
-            };
 
             // Notificar a jubiloPush que OneSignal está listo
             window.jubiloPush.init(OneSignal);
