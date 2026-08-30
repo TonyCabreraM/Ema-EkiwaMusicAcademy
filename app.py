@@ -87,7 +87,7 @@ def create_app():
             "has_onesignal": bool(ONESIGNAL_APP_ID),
         }
 
-    def send_push_to_all(title, body, url='/notifications'):
+    def send_push_to_all(title, body, url='/notifications', image_url=None):
         """Envia una notificacion push real a todos los usuarios via OneSignal."""
         if not HAS_ONESIGNAL:
             logger.warning('OneSignal no configurado (faltan ONESIGNAL_APP_ID o REST_API_KEY)')
@@ -107,6 +107,12 @@ def create_app():
             "contents": {"en": body, "es": body},
             "url": target_url
         }
+        
+        # Imagen grande para la notificacion (big_picture en Android, chrome_web_image en Chrome)
+        if image_url:
+            payload["big_picture"] = image_url
+            payload["chrome_web_image"] = image_url
+            payload["adm_big_picture"] = image_url
         
         try:
             response = requests.post(
@@ -829,18 +835,20 @@ def create_app():
         if request.method == "POST":
             title = sanitize_input(request.form.get("title", ""))
             message = sanitize_input(request.form.get("message", ""))
+            image_url = sanitize_input(request.form.get("image_url", "")).strip()
             if not title or not message:
                 flash("Titulo y mensaje son obligatorios", "error")
             else:
                 notif = Notification(
                     title=title,
                     message=message,
+                    image_url=image_url or None,
                     created_by_id=session.get("admin_id"),
                     created_at=datetime.utcnow()
                 )
                 db.session.add(notif)
                 db.session.commit()
-                result = send_push_to_all(title, message, '/notifications')
+                result = send_push_to_all(title, message, '/notifications', image_url=image_url or None)
                 if result["ok"]:
                     sent = result["sent"]
                     if sent > 0:
@@ -910,7 +918,7 @@ def create_app():
         
         notif = Notification.query.get_or_404(notification_id)
         
-        result = send_push_to_all(notif.title, notif.message, '/notifications')
+        result = send_push_to_all(notif.title, notif.message, '/notifications', image_url=notif.image_url)
         
         if is_ajax:
             status = 200 if result["ok"] else 502
@@ -1163,6 +1171,7 @@ def create_app():
         notifications = Notification.query.all()
         notifications_data = [{
             "title": n.title, "message": n.message,
+            "image_url": n.image_url,
             "created_at": n.created_at.strftime("%Y-%m-%d %H:%M:%S") if n.created_at else None
         } for n in notifications]
         
@@ -1306,6 +1315,7 @@ def create_app():
             not_imported = 0
             for nd in data.get("notifications", []):
                 db.session.add(Notification(title=nd["title"], message=nd["message"],
+                    image_url=nd.get("image_url"),
                     created_by_id=session.get("admin_id")))
                 not_imported += 1
             

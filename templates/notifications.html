@@ -40,6 +40,17 @@
             <small class="muted">Máximo 1000 caracteres</small>
         </label>
 
+        <label>Imagen (opcional)
+            <input type="url" name="image_url" id="image_url"
+                   placeholder="https://ejemplo.com/imagen.jpg"
+                   oninput="previewNotifImage(this.value)">
+            <small class="muted">URL pública de la imagen que se mostrará en la notificación (como en OneSignal)</small>
+        </label>
+        <div id="imagePreview" style="display:none; text-align:center; margin-top: 8px;">
+            <img id="imagePreviewImg" src="" alt="Vista previa"
+                 style="max-width: 100%; max-height: 180px; border-radius: 8px; border: 1px solid var(--border);">
+        </div>
+
         <button type="submit" class="btn btn-primary btn-block">📢 Crear y enviar con OneSignal</button>
     </form>
 </div>
@@ -53,6 +64,7 @@
             <th>Mensaje</th>
             <th>Creada por</th>
             <th>Fecha</th>
+            <th>Imagen</th>
             <th>Acciones</th>
         </tr>
     </thead>
@@ -63,6 +75,13 @@
             <td style="max-width: 400px; white-space: normal; word-wrap: break-word;">{{ notif.message }}</td>
             <td style="white-space: nowrap;">👤 {{ notif.created_by.username if notif.created_by else '—' }}</td>
             <td style="white-space: nowrap;">{{ notif.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td style="white-space: nowrap;">
+                {% if notif.image_url %}
+                    <img src="{{ notif.image_url }}" alt="Imagen" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border);">
+                {% else %}
+                    <span class="muted">—</span>
+                {% endif %}
+            </td>
             <td>
                 <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                     <button type="button"
@@ -129,6 +148,19 @@ async function updatePushButtonUI() {
 }
 
 window.updatePushButtonUI = updatePushButtonUI;
+
+// Vista previa de imagen en el formulario
+function previewNotifImage(url) {
+    const preview = document.getElementById('imagePreview');
+    const img = document.getElementById('imagePreviewImg');
+    if (url && url.trim()) {
+        img.src = url.trim();
+        preview.style.display = 'block';
+    } else {
+        preview.style.display = 'none';
+        img.src = '';
+    }
+}
 
 async function togglePushNotifications() {
     if (!window.jubiloPush) {

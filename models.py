@@ -142,6 +142,7 @@ class Notification(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(140), nullable=False)
     message = db.Column(db.String(1000), nullable=False)
+    image_url = db.Column(db.String(500), nullable=True)  # URL de imagen para OneSignal (big_picture)
     created_by_id = db.Column(db.Integer, db.ForeignKey('admins.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -153,6 +154,7 @@ class Notification(db.Model):
             'id': self.id,
             'title': self.title,
             'message': self.message,
+            'image_url': self.image_url,
             'created_by': self.created_by.username if self.created_by else None,
             'created_at': self.created_at.isoformat(),
         }
@@ -228,6 +230,13 @@ def init_db(app) -> None:
             with db.engine.begin() as conn:
                 conn.execute(text("ALTER TABLE admins ADD COLUMN is_marketing BOOLEAN DEFAULT FALSE"))
             print("🔧 Migración aplicada: columna 'is_marketing' agregada a la tabla admins")
+
+        # Migración: agregar image_url a notifications si falta (bases existentes)
+        notif_cols = [c['name'] for c in inspector.get_columns('notifications')]
+        if 'image_url' not in notif_cols:
+            with db.engine.begin() as conn:
+                conn.execute(text("ALTER TABLE notifications ADD COLUMN image_url VARCHAR(500)"))
+            print("🔧 Migración aplicada: columna 'image_url' agregada a la tabla notifications")
 
         # Crear admin por defecto si no existe (siempre superusuario)
         if Admin.query.count() == 0:

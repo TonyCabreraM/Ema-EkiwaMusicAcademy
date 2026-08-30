@@ -96,6 +96,24 @@
                 
                 // Log de la configuración del Service Worker
                 console.log('Service Worker configurado en:', '/OneSignalSDKWorker.js');
+
+                // ===== AUTO-PROMPT DE SUSCRIPCIÓN =====
+                // Si el usuario no está suscrito y no ha sido preguntado en esta sesión,
+                // pedir permiso automáticamente después de 2 segundos.
+                if (!isSubscribed && !sessionStorage.getItem('jubilo_push_prompted')) {
+                    sessionStorage.setItem('jubilo_push_prompted', '1');
+                    setTimeout(async () => {
+                        try {
+                            console.log('Solicitando permiso de notificaciones automáticamente...');
+                            await OneSignal.Notifications.requestPermission(true);
+                            const nowSubscribed = await OneSignal.User.PushSubscription.isSubscribed();
+                            console.log('Resultado auto-prompt:', nowSubscribed ? 'Suscrito' : 'No suscrito');
+                            if (window.updatePushButtonUI) window.updatePushButtonUI();
+                        } catch (e) {
+                            console.warn('Auto-prompt de suscripción falló:', e);
+                        }
+                    }, 2000);
+                }
             } catch (e) {
                 console.error('Error al inicializar OneSignal:', e);
             }

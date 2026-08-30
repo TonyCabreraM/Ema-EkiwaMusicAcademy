@@ -290,9 +290,9 @@
         {% else %}
             <h3>📋 Movimientos Recientes</h3>
             
-            <!-- Notificaciones push para el cliente (OneSignal) -->
+            <!-- Notificaciones push para el cliente (OneSignal) - botón secundario -->
             <div style="margin-bottom: 20px; padding: 15px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; text-align: center;">
-                <button id="enablePushBtn" class="btn btn-primary" onclick="togglePushNotifications()">
+                <button id="enablePushBtn" class="btn btn-sm" onclick="togglePushNotifications()" style="opacity: 0.85;">
                     🔔 Activar notificaciones de novedades
                 </button>
                 <p id="pushStatus" class="muted small" style="margin-top: 10px;">Recibe avisos cuando tu saldo cambie o haya promociones.</p>
