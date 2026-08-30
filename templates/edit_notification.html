@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Notificación · Júbilo{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>✏️ Editar Notificación</h1>
+    <p class="muted">Actualiza el contenido de la notificación <strong>{{ notif.title }}</strong></p>
+</div>
+
+<div class="auth-card" style="max-width: 760px; margin: 20px auto; text-align: left;">
+    <form method="POST" action="{{ url_for('edit_notification', notification_id=notif.id) }}"
+          class="form" enctype="multipart/form-data">
+        <label>Título
+            <input type="text" name="title" required maxlength="140"
+                   value="{{ notif.title }}"
+                   placeholder="Ej. Nueva promoción disponible">
+            <small class="muted">Máximo 140 caracteres</small>
+        </label>
+
+        <label>Mensaje
+            <textarea name="message" rows="4" required maxlength="1000"
+                      placeholder="Escribe el contenido que recibirá el cliente">{{ notif.message }}</textarea>
+            <small class="muted">Máximo 1000 caracteres</small>
+        </label>
+
+        <label>Imagen (opcional)
+            <input type="file" name="image_file" id="image_file" accept="image/*"
+                   onchange="previewNotifImageFile(this)">
+            <small class="muted">Selecciona una imagen desde tu dispositivo. Si no eliges una nueva, se conserva la actual.</small>
+        </label>
+        <div id="imagePreview" style="display:none; text-align:center; margin-top: 8px;">
+            <img id="imagePreviewImg" src="" alt="Vista previa"
+                 style="max-width: 100%; max-height: 180px; border-radius: 8px; border: 1px solid var(--border);">
+        </div>
+        {% if notif.image_url %}
+        <div style="text-align:center; margin-top: 8px;">
+            <small class="muted">Imagen actual:</small><br>
+            <img src="{{ notif.image_url }}" alt="Imagen actual"
+                 style="max-width: 100%; max-height: 180px; border-radius: 8px; border: 1px solid var(--border);">
+        </div>
+        {% endif %}
+
+        <label>Link al hacer clic (opcional)
+            <input type="url" name="link_url" id="link_url" maxlength="500"
+                   value="{{ notif.link_url or '' }}"
+                   placeholder="Ej. https://jubiloqrv2.onrender.com/card/ABC123">
+            <small class="muted">Al presionar la notificación en el dispositivo abrirá este enlace. Si lo dejas vacío, abrirá la página de notificaciones.</small>
+        </label>
+
+        <div style="margin-top: 30px; display: flex; gap: 10px;">
+            <button type="submit" class="btn btn-primary" style="flex: 1;">💾 Guardar Cambios</button>
+            <a href="{{ url_for('notifications') }}" class="btn" style="flex: 0;">⬅ Cancelar</a>
+        </div>
+    </form>
+</div>
+
+<script>
+// Vista previa de imagen seleccionada desde el dispositivo
+function previewNotifImageFile(input) {
+    const preview = document.getElementById('imagePreview');
+    const img = document.getElementById('imagePreviewImg');
+    const file = input.files && input.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            img.src = e.target.result;
+            preview.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+    } else {
+        preview.style.display = 'none';
+        img.src = '';
+    }
+}
+</script>
+{% endblock %}

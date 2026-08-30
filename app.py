@@ -855,6 +855,7 @@ def create_app():
             title = sanitize_input(request.form.get("title", ""))
             message = sanitize_input(request.form.get("message", ""))
             image_url = sanitize_input(request.form.get("image_url", "")).strip()
+            link_url = sanitize_input(request.form.get("link_url", "")).strip()
             
             # Procesar imagen subida desde el dispositivo
             uploaded_image = request.files.get("image_file")
@@ -868,12 +869,13 @@ def create_app():
                     title=title,
                     message=message,
                     image_url=image_url or None,
+                    link_url=link_url or None,
                     created_by_id=session.get("admin_id"),
                     created_at=datetime.utcnow()
                 )
                 db.session.add(notif)
                 db.session.commit()
-                result = send_push_to_all(title, message, '/notifications', image_url=image_url or None)
+                result = send_push_to_all(title, message, link_url or '/notifications', image_url=image_url or None)
                 if result["ok"]:
                     sent = result["sent"]
                     if sent > 0:
@@ -885,6 +887,40 @@ def create_app():
                 return redirect(url_for("notifications"))
         notifs = Notification.query.order_by(Notification.created_at.desc()).all()
         return render_template("notifications.html", notifications=notifs, last_notification=None)
+
+    @app.route("/notifications/<int:notification_id>/edit", methods=["GET", "POST"])
+    def edit_notification(notification_id):
+        """Editar una notificación ya creada (título, mensaje, imagen y link)."""
+        if not session.get("admin_id"): return redirect(url_for("login"))
+        if not can_manage_notifications():
+            flash("No tienes permisos para gestionar notificaciones", "error")
+            return redirect(url_for("dashboard"))
+
+        notif = Notification.query.filter_by(id=notification_id).first_or_404()
+
+        if request.method == "POST":
+            title = sanitize_input(request.form.get("title", ""))
+            message = sanitize_input(request.form.get("message", ""))
+            image_url = sanitize_input(request.form.get("image_url", "")).strip()
+            link_url = sanitize_input(request.form.get("link_url", "")).strip()
+
+            # Procesar imagen subida desde el dispositivo (reemplaza la anterior)
+            uploaded_image = request.files.get("image_file")
+            if uploaded_image and uploaded_image.filename:
+                image_url = save_notification_image(uploaded_image)
+
+            if not title or not message:
+                flash("Titulo y mensaje son obligatorios", "error")
+            else:
+                notif.title = title
+                notif.message = message
+                notif.image_url = image_url or None
+                notif.link_url = link_url or None
+                db.session.commit()
+                flash("Notificacion actualizada correctamente", "success")
+                return redirect(url_for("notifications"))
+
+        return render_template("edit_notification.html", notif=notif)
 
     @app.route("/api/notifications/check")
     def check_notifications():
@@ -905,7 +941,7 @@ def create_app():
         
         return jsonify({
             "count": len(new_notifs),
-            "notifications": [{"id": n.id, "title": n.title, "message": n.message, "created_at": n.created_at.isoformat()} for n in new_notifs],
+            "notifications": [{"id": n.id, "title": n.title, "message": n.message, "link_url": n.link_url, "created_at": n.created_at.isoformat()} for n in new_notifs],
             "timestamp": datetime.utcnow().isoformat()
         })
 
@@ -943,7 +979,7 @@ def create_app():
         
         notif = Notification.query.get_or_404(notification_id)
         
-        result = send_push_to_all(notif.title, notif.message, '/notifications', image_url=notif.image_url)
+        result = send_push_to_all(notif.title, notif.message, notif.link_url or '/notifications', image_url=notif.image_url)
         
         if is_ajax:
             status = 200 if result["ok"] else 502
@@ -1197,6 +1233,7 @@ def create_app():
         notifications_data = [{
             "title": n.title, "message": n.message,
             "image_url": n.image_url,
+            "link_url": n.link_url,
             "created_at": n.created_at.strftime("%Y-%m-%d %H:%M:%S") if n.created_at else None
         } for n in notifications]
         
@@ -1341,6 +1378,7 @@ def create_app():
             for nd in data.get("notifications", []):
                 db.session.add(Notification(title=nd["title"], message=nd["message"],
                     image_url=nd.get("image_url"),
+                    link_url=nd.get("link_url"),
                     created_by_id=session.get("admin_id")))
                 not_imported += 1
             

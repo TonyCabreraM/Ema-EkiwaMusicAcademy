@@ -44,6 +44,12 @@
                  style="max-width: 100%; max-height: 180px; border-radius: 8px; border: 1px solid var(--border);">
         </div>
 
+        <label>Link al hacer clic (opcional)
+            <input type="url" name="link_url" id="link_url" maxlength="500"
+                   placeholder="Ej. https://jubiloqrv2.onrender.com/card/ABC123">
+            <small class="muted">Al presionar la notificación en el dispositivo abrirá este enlace. Si lo dejas vacío, abrirá la página de notificaciones.</small>
+        </label>
+
         <button type="submit" class="btn btn-primary btn-block">📢 Crear y enviar con OneSignal</button>
     </form>
 </div>
@@ -58,6 +64,7 @@
             <th>Creada por</th>
             <th>Fecha</th>
             <th>Imagen</th>
+            <th>Link</th>
             <th>Acciones</th>
         </tr>
     </thead>
@@ -75,8 +82,17 @@
                     <span class="muted">—</span>
                 {% endif %}
             </td>
+            <td style="max-width: 180px; white-space: normal; word-wrap: break-word;">
+                {% if notif.link_url %}
+                    <a href="{{ notif.link_url }}" target="_blank" rel="noopener" class="muted" style="font-size: 12px;">🔗 {{ notif.link_url }}</a>
+                {% else %}
+                    <span class="muted">—</span>
+                {% endif %}
+            </td>
             <td>
                 <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                    <a href="{{ url_for('edit_notification', notification_id=notif.id) }}"
+                       class="btn btn-sm">✏️ Editar</a>
                     <button type="button"
                             onclick="resendNotification({{ notif.id }})"
                             class="btn btn-sm btn-whatsapp"
