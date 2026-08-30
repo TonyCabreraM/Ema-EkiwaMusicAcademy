@@ -5,158 +5,279 @@
 {% block content %}
 <div class="page-header">
     <h1>📦 Inventario</h1>
-    <p class="muted">Agrega tus productos con foto, stock y precios. La tarjeta te avisa cuándo comprar más.</p>
+    <p class="muted">Gestiona tus productos, su stock y consulta estadísticas de ventas.</p>
 </div>
 
-<div class="stats" style="margin-top: 0;">
-    <div class="stat-card">
-        <div class="stat-value">{{ products|length }}</div>
-        <div class="stat-label">Productos</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">{{ out_of_stock }}</div>
-        <div class="stat-label">Agotados</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">{{ low_stock }}</div>
-        <div class="stat-label">Por reponer</div>
-    </div>
+<!-- Barra de pestañas -->
+<div style="display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; border-bottom: 2px solid var(--border); padding-bottom: 10px;">
+    <button type="button" class="btn btn-primary" id="tabBtn-products" onclick="switchTab('products')">📋 Productos</button>
+    <button type="button" class="btn" id="tabBtn-add" onclick="switchTab('add')">➕ Agregar producto</button>
+    <button type="button" class="btn" id="tabBtn-stats" onclick="switchTab('stats')">📊 Estadísticas</button>
 </div>
 
-<!-- Formulario para agregar producto -->
-<div class="auth-card" style="max-width: 760px; margin: 20px auto; text-align: left;">
-    <h3 style="text-align: center; margin-bottom: 1rem;">➕ Agregar producto</h3>
-    <form method="POST" action="{{ url_for('inventory') }}" class="form" enctype="multipart/form-data">
-        <label>Nombre del producto
-            <input type="text" name="name" required maxlength="140"
-                   placeholder="Ej. Café de olla, Pan dulce, Refresco...">
-        </label>
-
-        <label>Descripción (opcional)
-            <textarea name="description" rows="2" maxlength="500"
-                      placeholder="Detalles del producto"></textarea>
-        </label>
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-            <label>Coste ($)
-                <input type="number" name="cost" step="0.01" min="0" value="0" placeholder="0.00">
-                <small class="muted">Lo que cuesta comprarlo</small>
-            </label>
-            <label>Precio de venta ($)
-                <input type="number" name="price" step="0.01" min="0" value="0" placeholder="0.00">
-                <small class="muted">Lo que pagas por él</small>
-            </label>
+<!-- ============ PESTAÑA 1: PRODUCTOS ============ -->
+<div id="tab-products">
+    <div class="stats" style="margin-top: 0;">
+        <div class="stat-card">
+            <div class="stat-value">{{ products|length }}</div>
+            <div class="stat-label">Productos</div>
         </div>
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-            <label>Cantidad en stock
-                <input type="number" name="quantity" min="0" value="0" placeholder="Ej. 10">
-            </label>
-            <label>Comprar más cuando queden
-                <input type="number" name="reorder_point" min="0" value="0" placeholder="Ej. 3">
-                <small class="muted">Punto mínimo de reorden</small>
-            </label>
+        <div class="stat-card">
+            <div class="stat-value">{{ out_of_stock }}</div>
+            <div class="stat-label">Agotados</div>
         </div>
-
-        <label>Foto del producto
-            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                <input type="file" name="image_file" id="image_file" accept="image/*"
-                       onchange="previewProductImage(this)" style="flex: 1; min-width: 200px;">
-                <button type="button" class="btn btn-sm" onclick="document.getElementById('image_file').click()" style="flex: 0;">
-                    📷 Tomar foto / Elegir
-                </button>
-            </div>
-            <small class="muted">En el celular puedes <strong>tomar la foto con la cámara</strong> o elegirla de la galería.</small>
-        </label>
-        <div id="imagePreview" style="display:none; text-align:center; margin-top: 8px;">
-            <img id="imagePreviewImg" src="" alt="Vista previa"
-                 style="max-width: 100%; max-height: 180px; border-radius: 8px; border: 1px solid var(--border);">
+        <div class="stat-card">
+            <div class="stat-value">{{ low_stock }}</div>
+            <div class="stat-label">Por reponer</div>
         </div>
+    </div>
 
-        <button type="submit" class="btn btn-primary btn-block">💾 Guardar producto</button>
-    </form>
-</div>
-
-<!-- Grid de productos -->
-{% if products %}
-<h3 style="margin-top: 30px;">📋 Productos</h3>
-<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; margin-top: 15px;">
-    {% for p in products %}
-    {% set low_stock = p.quantity > 0 and p.quantity <= p.reorder_point %}
-    {% set out_stock = p.quantity <= 0 %}
-    {% set status_color = '#e74c3c' if out_stock else ('#f39c12' if low_stock else '#27ae60') %}
-    <div style="border-radius: 16px; overflow: hidden; border: 2px solid var(--border); background: var(--card); box-shadow: 0 4px 15px rgba(0,0,0,0.25); display: flex; flex-direction: column; position: relative;">
-        <!-- Foto -->
-        <div style="height: 160px; background: var(--bg); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative;">
-            {% if p.image_url %}
-            <img src="{{ p.image_url }}" alt="{{ p.name }}" style="width: 100%; height: 100%; object-fit: cover;">
-            {% else %}
-            <span style="font-size: 3rem; opacity: 0.4;">📦</span>
-            {% endif %}
-            <!-- Estado -->
-            <div style="position: absolute; top: 10px; right: 10px; background: {{ status_color }}; color: white; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">
-                {% if out_stock %}🚫 Agotado{% elif low_stock %}⚠️ Comprar más{% else %}✅ En stock{% endif %}
-            </div>
-        </div>
-
-        <!-- Cuerpo -->
-        <div style="padding: 15px; flex: 1; display: flex; flex-direction: column;">
-            <h4 style="margin: 0 0 4px; font-size: 1.05rem;">{{ p.name }}</h4>
-            {% if p.description %}
-            <p style="margin: 0 0 8px; font-size: 0.8rem; color: var(--muted);">{{ p.description }}</p>
-            {% endif %}
-
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <span style="font-size: 1.2rem; font-weight: bold; color: var(--text);">${{ "%.2f"|format(p.price) }}</span>
-                {% if p.cost > 0 %}
-                <span style="font-size: 0.75rem; color: var(--muted);">Coste: ${{ "%.2f"|format(p.cost) }}</span>
+    {% if products %}
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; margin-top: 15px;">
+        {% for p in products %}
+        {% set low_stock_p = p.quantity > 0 and p.quantity <= p.reorder_point %}
+        {% set out_stock_p = p.quantity <= 0 %}
+        {% set status_color = '#e74c3c' if out_stock_p else ('#f39c12' if low_stock_p else '#27ae60') %}
+        <div style="border-radius: 16px; overflow: hidden; border: 2px solid var(--border); background: var(--card); box-shadow: 0 4px 15px rgba(0,0,0,0.25); display: flex; flex-direction: column; position: relative;">
+            <!-- Foto -->
+            <div style="height: 160px; background: var(--bg); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative;">
+                {% if p.image_url %}
+                <img src="{{ p.image_url }}" alt="{{ p.name }}" style="width: 100%; height: 100%; object-fit: cover;">
+                {% else %}
+                <span style="font-size: 3rem; opacity: 0.4;">📦</span>
                 {% endif %}
-            </div>
-
-            <!-- Cantidad -->
-            <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px; text-align: center; margin-bottom: 10px;">
-                <div style="font-size: 0.75rem; color: var(--muted);">Cantidad que queda</div>
-                <div style="font-size: 1.6rem; font-weight: bold; color: {{ status_color }};">{{ p.quantity }}</div>
-                <div style="font-size: 0.75rem; color: var(--muted);">
-                    {% if out_stock %}
-                    🔴 Sin existencias
-                    {% elif low_stock %}
-                    🟠 Quedan pocas — compra más (mín. {{ p.reorder_point }})
-                    {% else %}
-                    🟢 Stock suficiente
-                    {% endif %}
+                <div style="position: absolute; top: 10px; right: 10px; background: {{ status_color }}; color: white; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">
+                    {% if out_stock_p %}🚫 Agotado{% elif low_stock_p %}⚠️ Comprar más{% else %}✅ En stock{% endif %}
                 </div>
             </div>
 
-            <!-- Ajuste rápido de stock -->
-            <div style="display: flex; gap: 6px; margin-bottom: 10px;">
-                <form method="POST" action="{{ url_for('adjust_product_quantity', product_id=p.id) }}" style="flex: 1;">
-                    <input type="hidden" name="delta" value="-1">
-                    <button type="submit" class="btn btn-sm" style="width: 100%;">−1</button>
-                </form>
-                <form method="POST" action="{{ url_for('adjust_product_quantity', product_id=p.id) }}" style="flex: 1;">
-                    <input type="hidden" name="delta" value="1">
-                    <button type="submit" class="btn btn-sm btn-primary" style="width: 100%;">+1</button>
-                </form>
-            </div>
+            <!-- Cuerpo -->
+            <div style="padding: 15px; flex: 1; display: flex; flex-direction: column;">
+                <h4 style="margin: 0 0 4px; font-size: 1.05rem;">{{ p.name }}</h4>
+                {% if p.description %}
+                <p style="margin: 0 0 8px; font-size: 0.8rem; color: var(--muted);">{{ p.description }}</p>
+                {% endif %}
 
-            <!-- Acciones -->
-            <div style="display: flex; gap: 6px; margin-top: auto;">
-                <button type="button" class="btn btn-sm" style="flex: 1;" onclick="openEditModal({{ p.id }})">✏️ Editar</button>
-                <form method="POST" action="{{ url_for('delete_product', product_id=p.id) }}" style="flex: 0;"
-                      onsubmit="return confirm('¿Eliminar el producto {{ p.name }}?');">
-                    <button type="submit" class="btn btn-sm btn-danger">🗑️</button>
-                </form>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <span style="font-size: 1.2rem; font-weight: bold; color: var(--text);">${{ "%.2f"|format(p.price) }}</span>
+                    {% if p.cost > 0 %}
+                    <span style="font-size: 0.75rem; color: var(--muted);">Coste: ${{ "%.2f"|format(p.cost) }}</span>
+                    {% endif %}
+                </div>
+
+                <!-- Cantidad -->
+                <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px; text-align: center; margin-bottom: 10px;">
+                    <div style="font-size: 0.75rem; color: var(--muted);">Cantidad que queda</div>
+                    <div style="font-size: 1.6rem; font-weight: bold; color: {{ status_color }};">{{ p.quantity }}</div>
+                    <div style="font-size: 0.75rem; color: var(--muted);">
+                        {% if out_stock_p %}
+                        🔴 Sin existencias
+                        {% elif low_stock_p %}
+                        🟠 Quedan pocas — compra más (mín. {{ p.reorder_point }})
+                        {% else %}
+                        🟢 Stock suficiente
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Vender / Reponer -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px;">
+                    <form method="POST" action="{{ url_for('sell_product', product_id=p.id) }}" style="display: flex; gap: 4px;">
+                        <input type="number" name="quantity" value="1" min="1" max="{{ p.quantity }}"
+                               style="width: 45px; padding: 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); text-align: center;">
+                        <button type="submit" class="btn btn-sm btn-danger" style="flex: 1;" title="Registrar venta">💸 Vender</button>
+                    </form>
+                    <form method="POST" action="{{ url_for('restock_product', product_id=p.id) }}" style="display: flex; gap: 4px;">
+                        <input type="number" name="quantity" value="1" min="1"
+                               style="width: 45px; padding: 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); text-align: center;">
+                        <button type="submit" class="btn btn-sm btn-primary" style="flex: 1;" title="Registrar reposición">📥 Reponer</button>
+                    </form>
+                </div>
+
+                <!-- Acciones -->
+                <div style="display: flex; gap: 6px; margin-top: auto;">
+                    <button type="button" class="btn btn-sm" style="flex: 1;" onclick="openEditModal({{ p.id }})">✏️ Editar</button>
+                    <form method="POST" action="{{ url_for('delete_product', product_id=p.id) }}" style="flex: 0;"
+                          onsubmit="return confirm('¿Eliminar el producto {{ p.name }}?');">
+                        <button type="submit" class="btn btn-sm btn-danger">🗑️</button>
+                    </form>
+                </div>
             </div>
         </div>
+        {% endfor %}
     </div>
-    {% endfor %}
+    {% else %}
+    <div class="auth-card" style="max-width: 500px; margin: 30px auto;">
+        <p class="muted">No hay productos en el inventario. Ve a la pestaña <strong>➕ Agregar producto</strong> para crear el primero.</p>
+    </div>
+    {% endif %}
 </div>
-{% else %}
-<div class="auth-card" style="max-width: 500px; margin: 30px auto;">
-    <p class="muted">No hay productos en el inventario. Agrega el primero desde el formulario.</p>
+
+<!-- ============ PESTAÑA 2: AGREGAR PRODUCTO ============ -->
+<div id="tab-add" style="display: none;">
+    <div class="auth-card" style="max-width: 760px; margin: 20px auto; text-align: left;">
+        <h3 style="text-align: center; margin-bottom: 1rem;">➕ Agregar producto</h3>
+        <form method="POST" action="{{ url_for('inventory') }}" class="form" enctype="multipart/form-data">
+            <label>Nombre del producto
+                <input type="text" name="name" required maxlength="140"
+                       placeholder="Ej. Café de olla, Pan dulce, Refresco...">
+            </label>
+
+            <label>Descripción (opcional)
+                <textarea name="description" rows="2" maxlength="500"
+                          placeholder="Detalles del producto"></textarea>
+            </label>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <label>Coste ($)
+                    <input type="number" name="cost" step="0.01" min="0" value="0" placeholder="0.00">
+                    <small class="muted">Lo que cuesta comprarlo</small>
+                </label>
+                <label>Precio de venta ($)
+                    <input type="number" name="price" step="0.01" min="0" value="0" placeholder="0.00">
+                    <small class="muted">Lo que pagas por él</small>
+                </label>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <label>Cantidad en stock
+                    <input type="number" name="quantity" min="0" value="0" placeholder="Ej. 10">
+                </label>
+                <label>Comprar más cuando queden
+                    <input type="number" name="reorder_point" min="0" value="0" placeholder="Ej. 3">
+                    <small class="muted">Punto mínimo de reorden</small>
+                </label>
+            </div>
+
+            <label>Foto del producto
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <input type="file" name="image_file" id="image_file" accept="image/*"
+                           onchange="previewProductImage(this)" style="flex: 1; min-width: 200px;">
+                    <button type="button" class="btn btn-sm" onclick="document.getElementById('image_file').click()" style="flex: 0;">
+                        📷 Tomar foto / Elegir
+                    </button>
+                </div>
+                <small class="muted">En el celular puedes <strong>tomar la foto con la cámara</strong> o elegirla de la galería.</small>
+            </label>
+            <div id="imagePreview" style="display:none; text-align:center; margin-top: 8px;">
+                <img id="imagePreviewImg" src="" alt="Vista previa"
+                     style="max-width: 100%; max-height: 180px; border-radius: 8px; border: 1px solid var(--border);">
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block">💾 Guardar producto</button>
+        </form>
+    </div>
 </div>
-{% endif %}
+
+<!-- ============ PESTAÑA 3: ESTADÍSTICAS ============ -->
+<div id="tab-stats" style="display: none;">
+    <!-- Ventas -->
+    <h3 style="margin-top: 10px;">💰 Ventas</h3>
+    <div class="stats" style="margin-top: 0;">
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.units_week }}</div>
+            <div class="stat-label">Unidades · 7 días</div>
+            <div class="stat-label" style="color: var(--success);">${{ "%.2f"|format(stats.revenue_week) }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.units_month }}</div>
+            <div class="stat-label">Unidades · Este mes</div>
+            <div class="stat-label" style="color: var(--success);">${{ "%.2f"|format(stats.revenue_month) }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.units_total }}</div>
+            <div class="stat-label">Unidades · Total</div>
+            <div class="stat-label" style="color: var(--success);">${{ "%.2f"|format(stats.revenue_total) }}</div>
+        </div>
+    </div>
+
+    <!-- Pedidos de reabastecimiento -->
+    <h3 style="margin-top: 25px;">🛒 Pedidos para más stock</h3>
+    <div class="stats" style="margin-top: 0;">
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.reorders_week }}</div>
+            <div class="stat-label">Últimos 7 días</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.reorders_month }}</div>
+            <div class="stat-label">Este mes</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.reorders_total }}</div>
+            <div class="stat-label">Total</div>
+        </div>
+    </div>
+
+    <!-- Productos más vendidos -->
+    {% if stats.top_sold %}
+    <h3 style="margin-top: 25px;">🏆 Productos más vendidos</h3>
+    <div class="table-responsive" style="margin-top: 10px;">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Producto</th>
+                <th>Unidades vendidas</th>
+                <th>Ingresos</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for product, units in stats.top_sold %}
+            <tr>
+                <td><strong>{{ product.name if product else '—' }}</strong></td>
+                <td>{{ units }}</td>
+                <td>${{ "%.2f"|format(units * (product.price if product else 0)) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    <!-- Flujo de stock -->
+    <h3 style="margin-top: 25px;">📈 Flujo de stock (movimientos recientes)</h3>
+    {% if stats.recent_movements %}
+    <div class="table-responsive" style="margin-top: 10px;">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Producto</th>
+                <th>Tipo</th>
+                <th>Cambio</th>
+                <th>Nota</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in stats.recent_movements %}
+            <tr>
+                <td style="white-space: nowrap;">{{ m.created_at.strftime('%d/%m/%Y %H:%M') if m.created_at else '—' }}</td>
+                <td><strong>{{ m.product.name if m.product else '—' }}</strong></td>
+                <td>
+                    {% if m.movement_type == 'sale' %}
+                    <span style="color: var(--danger);">💸 Venta</span>
+                    {% elif m.movement_type == 'restock' %}
+                    <span style="color: var(--success);">📥 Reposición</span>
+                    {% elif m.movement_type == 'reorder' %}
+                    <span style="color: #f39c12;">🛒 Reorden</span>
+                    {% else %}
+                    <span class="muted">🔧 Ajuste</span>
+                    {% endif %}
+                </td>
+                <td style="font-weight: bold; {% if m.change < 0 %}color: var(--danger);{% elif m.change > 0 %}color: var(--success);{% endif %}">
+                    {% if m.change > 0 %}+{% endif %}{{ m.change }}
+                </td>
+                <td style="max-width: 250px; white-space: normal; word-wrap: break-word;">{{ m.note or '—' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="auth-card" style="max-width: 500px; margin: 20px auto;">
+        <p class="muted">Aún no hay movimientos registrados. Registra ventas o reposiciones desde la pestaña <strong>📋 Productos</strong>.</p>
+    </div>
+    {% endif %}
+</div>
 
 <!-- Modal de edición -->
 <div id="editModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.8); z-index:3000; align-items:center; justify-content:center; overflow-y:auto;">
@@ -199,6 +320,22 @@
 </div>
 
 <script>
+// Cambio de pestañas
+function switchTab(tab) {
+    const tabs = ['products', 'add', 'stats'];
+    tabs.forEach(t => {
+        document.getElementById('tab-' + t).style.display = (t === tab) ? 'block' : 'none';
+        const btn = document.getElementById('tabBtn-' + t);
+        if (t === tab) {
+            btn.classList.add('btn-primary');
+            btn.classList.remove('btn');
+        } else {
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn');
+        }
+    });
+}
+
 // Vista previa de imagen al agregar producto
 function previewProductImage(input) {
     const preview = document.getElementById('imagePreview');

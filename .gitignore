@@ -20,6 +20,7 @@ instance/
 JubiloBackup.json
 *.bak
 *.backup
+backups/
 
 # Tooling and OS files
 .pytest_cache/

@@ -248,6 +248,36 @@ class Product(db.Model):
         return f"Product({self.id}, {self.name})"
 
 
+class ProductMovement(db.Model):
+    """Movimiento de stock de un producto (venta, reposición o ajuste).
+    Permite calcular estadísticas de ventas, flujo de stock y reordenes."""
+    __tablename__ = 'product_movements'
+
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
+    change = db.Column(db.Integer, nullable=False)  # + reposición, - venta
+    movement_type = db.Column(db.String(20), nullable=False, default='sale')
+    # 'sale' (venta), 'restock' (reposición), 'adjustment' (ajuste), 'reorder' (alcanzó punto de reorden)
+    note = db.Column(db.String(200), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    product = db.relationship('Product', backref='movements', lazy=True)
+
+    def to_dict(self) -> dict:
+        """Serializa a dict"""
+        return {
+            'id': self.id,
+            'product_id': self.product_id,
+            'change': self.change,
+            'movement_type': self.movement_type,
+            'note': self.note,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+    def __str__(self) -> str:
+        return f"ProductMovement({self.id}, {self.product_id}, {self.change})"
+
+
 def init_db(app) -> None:
     """Inicializa base de datos y crea admin por defecto"""
     with app.app_context():

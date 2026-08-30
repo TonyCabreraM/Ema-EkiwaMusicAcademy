@@ -13,14 +13,21 @@
 <!-- Exportar -->
 <div class="auth-card" style="max-width: 700px; margin: 20px auto;">
     <h3>📤 Exportar base de datos</h3>
-    <p class="muted">Descarga un archivo JSON con todas las tarjetas, transacciones y notificaciones. Usalo como respaldo o para migrar entre entornos.</p>
+    <p class="muted">Descarga un archivo JSON con todas las tarjetas, transacciones, notificaciones, membresías, productos e inventario. Úsalo como respaldo o para migrar entre entornos.</p>
     <a href="{{ url_for('export_backup') }}" class="btn btn-success btn-block" style="margin-top: 20px;">⬇ Descargar respaldo completo (JSON)</a>
+</div>
+
+<!-- Respaldo automático -->
+<div class="auth-card" style="max-width: 700px; margin: 20px auto;">
+    <h3>🤖 Respaldo automático</h3>
+    <p class="muted">Al iniciar la aplicación se genera automáticamente un respaldo diario con <strong>todos los datos</strong> (tarjetas, transacciones, notificaciones, membresías, productos y movimientos de stock). Se conservan los últimos 30 respaldos en la carpeta <code>backups/</code>.</p>
+    <p class="muted" style="margin-top: 8px;">💡 En Render la base de datos PostgreSQL es persistente; los respaldos automáticos en disco son una capa extra de seguridad. Descarga periódicamente el respaldo completo para guardarlo fuera del servidor.</p>
 </div>
 
 <!-- Importar -->
 <div class="auth-card" style="max-width: 700px; margin: 20px auto;">
     <h3>📥 Restaurar desde respaldo</h3>
-    <p class="muted">Sube un archivo JSON previamente exportado. Las tarjetas con el mismo codigo se <strong>actualizan</strong>, las nuevas se <strong>agregan</strong>. Las transacciones y notificaciones se suman a las existentes.</p>
+    <p class="muted">Sube un archivo JSON previamente exportado. Las tarjetas con el mismo código se <strong>actualizan</strong>, las nuevas se <strong>agregan</strong>. Las transacciones, notificaciones, productos y movimientos se suman a los existentes.</p>
     <form method="POST" action="{{ url_for('import_backup') }}" enctype="multipart/form-data"
           onsubmit="return confirm('¿Estas seguro? Esto importara datos del respaldo seleccionado.');">
         <div class="form-group">
@@ -37,7 +44,10 @@
     <ul style="list-style: none; padding: 0; margin: 0;">
         <li style="padding: 8px 0; border-bottom: 1px solid var(--border);">🎁 <strong>{{ stats.cards }}</strong> tarjetas</li>
         <li style="padding: 8px 0; border-bottom: 1px solid var(--border);">💰 <strong>{{ stats.transactions }}</strong> transacciones</li>
-        <li style="padding: 8px 0;">🔔 <strong>{{ stats.notifications }}</strong> notificaciones</li>
+        <li style="padding: 8px 0; border-bottom: 1px solid var(--border);">🔔 <strong>{{ stats.notifications }}</strong> notificaciones</li>
+        <li style="padding: 8px 0; border-bottom: 1px solid var(--border);">💎 <strong>{{ stats.memberships }}</strong> membresías</li>
+        <li style="padding: 8px 0; border-bottom: 1px solid var(--border);">📦 <strong>{{ stats.products }}</strong> productos</li>
+        <li style="padding: 8px 0;">📈 <strong>{{ stats.movements }}</strong> movimientos de stock</li>
     </ul>
 </div>
 {% endblock %}
