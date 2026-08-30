@@ -5,42 +5,47 @@
 {% block content %}
 <div class="page-header">
     <h1>🔔 Notificaciones</h1>
-    <p class="muted">Crea y gestiona las notificaciones que verás en el sistema</p>
+    <p class="muted">Crea, reenvía y elimina avisos push enviados con OneSignal</p>
 </div>
 
-
-
-<!-- Botón para activar notificaciones push -->
-<div style="margin-bottom: 20px; text-align: center;">
-    <button id="enablePushBtn" class="btn btn-primary" onclick="togglePushNotifications()">
-        🔔 Activar notificaciones push del navegador
-    </button>
-    <p id="pushStatus" class="muted small" style="margin-top: 10px;"></p>
+<div class="stats" style="margin-top: 0;">
+    <div class="stat-card">
+        <div class="stat-value">{{ notifications|length }}</div>
+        <div class="stat-label">Notificaciones</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{% if has_onesignal %}Activo{% else %}Inactivo{% endif %}</div>
+        <div class="stat-label">OneSignal</div>
+    </div>
+    <div class="stat-card">
+        <button id="enablePushBtn" class="btn btn-primary" type="button" onclick="togglePushNotifications()">
+            🔔 Activar push
+        </button>
+        <div id="pushStatus" class="muted small" style="margin-top: 0.75rem;"></div>
+    </div>
 </div>
 
-<!-- Crear nueva notificación -->
-<div class="auth-card" style="max-width: 600px; margin: 20px auto;">
-    <h3>➕ Crear nueva notificación</h3>
-    <form method="POST" action="{{ url_for('notifications') }}" class="form" style="margin-top: 20px;">
+<div class="auth-card" style="max-width: 760px; margin: 20px auto; text-align: left;">
+    <h3 style="text-align: center; margin-bottom: 1rem;">➕ Nueva notificación</h3>
+    <form method="POST" action="{{ url_for('notifications') }}" class="form">
         <label>Título
             <input type="text" name="title" required maxlength="140"
-                   placeholder="Ej. ¡Nueva promoción disponible!">
+                   placeholder="Ej. Nueva promoción disponible">
             <small class="muted">Máximo 140 caracteres</small>
         </label>
 
         <label>Mensaje
             <textarea name="message" rows="4" required maxlength="1000"
-                      placeholder="Escribe aquí el contenido de la notificación…"></textarea>
+                      placeholder="Escribe el contenido que recibirá el cliente"></textarea>
             <small class="muted">Máximo 1000 caracteres</small>
         </label>
 
-        <button type="submit" class="btn btn-primary btn-block">📢 Publicar notificación</button>
+        <button type="submit" class="btn btn-primary btn-block">📢 Crear y enviar con OneSignal</button>
     </form>
 </div>
 
-<!-- Lista de notificaciones -->
 {% if notifications %}
-<div style="overflow-x: auto; margin-top: 20px;">
+<div class="table-responsive" style="margin-top: 20px;">
 <table class="table">
     <thead>
         <tr>
@@ -61,15 +66,15 @@
             <td>
                 <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                     <button type="button"
-                            onclick="reenviarWhatsApp({{ notif.id }})"
+                            onclick="resendNotification({{ notif.id }})"
                             class="btn btn-sm btn-whatsapp"
-                            id="reenviar-btn-{{ notif.id }}">
-                        💬 Reenviar
+                            id="resend-btn-{{ notif.id }}">
+                        🔁 Reenviar
                     </button>
                     <form method="POST" action="{{ url_for('delete_notification', notification_id=notif.id) }}"
                           style="display: inline;"
                           onsubmit="return confirm('¿Eliminar esta notificación?');">
-                        <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
+                        <button type="submit" class="btn btn-sm btn-danger">🗑️ Eliminar</button>
                     </form>
                 </div>
             </td>
@@ -79,7 +84,9 @@
 </table>
 </div>
 {% else %}
-<p class="muted">No hay notificaciones todavía. Crea la primera con el formulario de arriba.</p>
+<div class="auth-card" style="max-width: 640px; margin: 20px auto;">
+    <p class="muted">No hay notificaciones todavía. Crea la primera desde el formulario.</p>
+</div>
 {% endif %}
 
 <script>
@@ -90,6 +97,7 @@ async function updatePushButtonUI() {
 
     if (!window.jubiloPush) {
         btn.style.display = 'none';
+        status.textContent = 'OneSignal no está disponible en esta página.';
         return;
     }
 
@@ -97,20 +105,20 @@ async function updatePushButtonUI() {
     btn.style.display = 'inline-block';
 
     if (state === 'active') {
-        btn.textContent = '🔕 Desactivar notificaciones push';
+        btn.textContent = '🔕 Desactivar push';
         btn.className = 'btn btn-danger';
-        status.textContent = '✅ Notificaciones push activadas. Recibirás avisos al crear nuevas notificaciones.';
+        status.textContent = 'Este navegador recibirá avisos push.';
     } else if (state === 'denied') {
-        btn.textContent = '🔔 Activar notificaciones push';
+        btn.textContent = '🔔 Activar push';
         btn.className = 'btn btn-primary';
-        status.textContent = '⚠️ Permiso denegado. Actívalo en la configuración del navegador.';
+        status.textContent = 'Permiso denegado en el navegador.';
     } else if (state === 'unsupported') {
         btn.style.display = 'none';
-        status.textContent = '❌ Tu navegador no soporta notificaciones push.';
+        status.textContent = 'Este navegador no soporta push.';
     } else {
-        btn.textContent = '🔔 Activar notificaciones push';
+        btn.textContent = '🔔 Activar push';
         btn.className = 'btn btn-primary';
-        status.textContent = 'ℹ️ Activa las notificaciones para recibir avisos en este dispositivo.';
+        status.textContent = 'Activa este navegador para probar envíos.';
     }
 }
 
@@ -122,27 +130,18 @@ async function togglePushNotifications() {
     if (state === 'active') {
         await window.jubiloPush.unsubscribePush();
         await updatePushButtonUI();
-        alert('🔕 Notificaciones push desactivadas.');
+        alert('Notificaciones push desactivadas.');
     } else {
         const ok = await window.jubiloPush.requestPushPermissionAndSubscribe();
+        await updatePushButtonUI();
         if (ok) {
-            await updatePushButtonUI();
-            alert('✅ Notificaciones push activadas correctamente.');
-        } else {
-            await updatePushButtonUI();
+            alert('Notificaciones push activadas correctamente.');
         }
     }
 }
 
-// Actualizar UI al cargar
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', updatePushButtonUI);
-} else {
-    updatePushButtonUI();
-}
-
-async function reenviarWhatsApp(notificationId) {
-    const btn = document.getElementById('reenviar-btn-' + notificationId);
+async function resendNotification(notificationId) {
+    const btn = document.getElementById('resend-btn-' + notificationId);
     if (!btn) return;
     
     const originalText = btn.innerHTML;
@@ -150,28 +149,34 @@ async function reenviarWhatsApp(notificationId) {
     btn.innerHTML = '⏳ Enviando...';
     
     try {
-        const response = await fetch('/notifications/' + notificationId + '/whatsapp', {
+        const response = await fetch('/notifications/' + notificationId + '/resend', {
             method: 'POST',
             headers: {'X-Requested-With': 'XMLHttpRequest'}
         });
+        const data = await response.json();
         
-        if (response.ok) {
-            const data = await response.json();
-            if (data.sent > 0) {
-                alert('✅ ' + (data.message || 'Notificación push enviada a ' + data.sent + ' dispositivo(s).'));
-            } else {
-                alert('⚠️ No hay dispositivos suscritos a notificaciones push.\nLos usuarios deben activar las notificaciones desde su navegador.');
-            }
+        if (!response.ok || !data.ok) {
+            alert('Error de OneSignal: ' + (data.error || 'No se pudo reenviar.'));
+            return;
+        }
+
+        if (data.sent > 0) {
+            alert('Notificación reenviada a ' + data.sent + ' dispositivo(s).');
         } else {
-            const error = await response.json();
-            alert('❌ Error: ' + (error.error || 'Error desconocido'));
+            alert('Notificación reenviada a OneSignal. Revisa audiencia y suscripciones si no llega a dispositivos.');
         }
     } catch (error) {
-        alert('❌ Error de conexión: ' + error.message);
+        alert('Error de conexión: ' + error.message);
     } finally {
         btn.disabled = false;
         btn.innerHTML = originalText;
     }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', updatePushButtonUI);
+} else {
+    updatePushButtonUI();
 }
 </script>
 {% endblock %}

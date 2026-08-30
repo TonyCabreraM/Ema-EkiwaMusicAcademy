@@ -91,7 +91,7 @@ def create_app():
         """Envia una notificacion push real a todos los usuarios via OneSignal."""
         if not HAS_ONESIGNAL:
             logger.warning('OneSignal no configurado (faltan ONESIGNAL_APP_ID o REST_API_KEY)')
-            return 0
+            return {"ok": False, "sent": 0, "error": "OneSignal no esta configurado"}
 
         target_url = url if url.startswith(('http://', 'https://')) else f"{get_public_base_url()}{url}"
         
@@ -115,11 +115,13 @@ def create_app():
                 json=payload
             )
             response.raise_for_status()
+            data = response.json()
+            sent = int(data.get("recipients") or 0)
             logger.info(f'Notificacion OneSignal enviada: {title}')
-            return 1  # OneSignal maneja la distribucion masiva internamente
+            return {"ok": True, "sent": sent, "id": data.get("id")}
         except Exception as e:
             logger.error(f'Error enviando notificacion OneSignal: {e}')
-            return 0
+            return {"ok": False, "sent": 0, "error": str(e)}
 
     # Las rutas de suscripcion VAPID han sido eliminadas.
     # OneSignal gestiona las suscripciones y el envio de notificaciones automaticamente.
@@ -828,12 +830,15 @@ def create_app():
                 )
                 db.session.add(notif)
                 db.session.commit()
-                # Enviar push notification real al momento de crear
-                sent = send_push_to_all(title, message, '/notifications')
-                if sent > 0:
-                    flash(f"Notificacion creada y enviada a {sent} dispositivo(s)", "success")
+                result = send_push_to_all(title, message, '/notifications')
+                if result["ok"]:
+                    sent = result["sent"]
+                    if sent > 0:
+                        flash(f"Notificacion creada y enviada a {sent} dispositivo(s)", "success")
+                    else:
+                        flash("Notificacion creada y enviada a OneSignal", "success")
                 else:
-                    flash("Notificacion creada (sin dispositivos suscritos)", "info")
+                    flash(f"Notificacion creada, pero OneSignal no la envio: {result['error']}", "error")
                 return redirect(url_for("notifications"))
         notifs = Notification.query.order_by(Notification.created_at.desc()).all()
         return render_template("notifications.html", notifications=notifs, last_notification=None)
@@ -871,9 +876,10 @@ def create_app():
         count = Notification.query.count()
         return jsonify({"unread": count})
 
+    @app.route("/notifications/<int:notification_id>/resend", methods=["POST"])
     @app.route("/notifications/<int:notification_id>/whatsapp", methods=["POST"])
-    def whatsapp_reenviar(notification_id):
-        """Reenviar notificacin como push notification a todos los dispositivos suscritos."""
+    def resend_notification(notification_id):
+        """Reenviar notificacion como push notification via OneSignal."""
         # Detectar si es peticin AJAX por header o content-type
         is_ajax = (
             request.headers.get('X-Requested-With') == 'XMLHttpRequest' or
@@ -894,15 +900,20 @@ def create_app():
         
         notif = Notification.query.get_or_404(notification_id)
         
-        # Enviar push notification a todos los dispositivos suscritos
-        sent = send_push_to_all(notif.title, notif.message, '/notifications')
+        result = send_push_to_all(notif.title, notif.message, '/notifications')
         
-        # Retornar siempre JSON vlido para AJAX
         if is_ajax:
-            return jsonify({"sent": sent, "message": f"Notificacin push enviada a {sent} dispositivo(s)"})
+            status = 200 if result["ok"] else 502
+            return jsonify(result), status
         
-        # Fallback HTML si no es AJAX
-        flash(f"Notificacin push enviada a {sent} dispositivo(s)", "success" if sent > 0 else "info")
+        if result["ok"]:
+            sent = result["sent"]
+            if sent > 0:
+                flash(f"Notificacion reenviada a {sent} dispositivo(s)", "success")
+            else:
+                flash("Notificacion reenviada a OneSignal", "success")
+        else:
+            flash(f"OneSignal no pudo reenviar la notificacion: {result['error']}", "error")
         return redirect(url_for("notifications"))
     
 
