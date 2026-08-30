@@ -299,6 +299,47 @@
         <p class="muted">Aún no hay movimientos registrados. Registra ventas o reposiciones desde la pestaña <strong>📋 Productos</strong>.</p>
     </div>
     {% endif %}
+
+    <!-- Ganancia (vendido - invertido) -->
+    <h3 style="margin-top: 25px;">💰 Ganancia (vendido − invertido)</h3>
+    <div class="stats" style="margin-top: 0;">
+        <div class="stat-card">
+            <div class="stat-value" style="color: {% if stats.profit_day >= 0 %}var(--success);{% else %}var(--danger);{% endif %}">
+                ${{ "%.2f"|format(stats.profit_day) }}
+            </div>
+            <div class="stat-label">Ganancia · Hoy</div>
+            <div class="stat-label" style="color: var(--muted); font-size: 0.75rem;">
+                ${{ "%.2f"|format(stats.revenue_day) }} vendido − ${{ "%.2f"|format(stats.invest_day) }} invertido
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" style="color: {% if stats.profit_week >= 0 %}var(--success);{% else %}var(--danger);{% endif %}">
+                ${{ "%.2f"|format(stats.profit_week) }}
+            </div>
+            <div class="stat-label">Ganancia · 7 días</div>
+            <div class="stat-label" style="color: var(--muted); font-size: 0.75rem;">
+                ${{ "%.2f"|format(stats.revenue_week) }} vendido − ${{ "%.2f"|format(stats.invest_week) }} invertido
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" style="color: {% if stats.profit_month >= 0 %}var(--success);{% else %}var(--danger);{% endif %}">
+                ${{ "%.2f"|format(stats.profit_month) }}
+            </div>
+            <div class="stat-label">Ganancia · Este mes</div>
+            <div class="stat-label" style="color: var(--muted); font-size: 0.75rem;">
+                ${{ "%.2f"|format(stats.revenue_month) }} vendido − ${{ "%.2f"|format(stats.invest_month) }} invertido
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" style="color: {% if stats.profit_total >= 0 %}var(--success);{% else %}var(--danger);{% endif %}">
+                ${{ "%.2f"|format(stats.profit_total) }}
+            </div>
+            <div class="stat-label">Ganancia · Total</div>
+            <div class="stat-label" style="color: var(--muted); font-size: 0.75rem;">
+                ${{ "%.2f"|format(stats.revenue_total) }} vendido − ${{ "%.2f"|format(stats.invest_total) }} invertido
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Modal de edición -->
