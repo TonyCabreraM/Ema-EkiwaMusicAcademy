@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Membresías · Júbilo{% endblock %}
+
+{% block content %}
+<!-- Ocultar navegación si no hay sesión de administrador (Vista de Cliente) -->
+{% if not session.get('admin_id') %}
+<style>
+    .menu-toggle, .sidebar, .sidebar-overlay, .footer { display: none !important; }
+    .container { max-width: 100%; padding: 20px; }
+</style>
+{% endif %}
+
+<div class="page-header" style="text-align: center;">
+    <h1>💎 Nuestras Membresías</h1>
+    <p class="muted">Elige el plan que mejor se adapte a ti y disfruta de beneficios exclusivos</p>
+</div>
+
+{% if memberships %}
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 20px;">
+    {% for m in memberships %}
+    <div style="border-radius: 16px; overflow: hidden; border: 2px solid {{ m.badge_color }}; background: var(--card); box-shadow: 0 4px 15px rgba(0,0,0,0.3); position: relative; display: flex; flex-direction: column;">
+        {% if m.is_default %}
+        <div style="position: absolute; top: 10px; right: 10px; background: #FFD700; color: #3E2723; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; z-index: 2; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">⭐ Principal</div>
+        {% endif %}
+
+        <!-- Cabecera de la tarjeta -->
+        <div style="padding: 30px 20px 20px; text-align: center; {% if m.background_image %}background-image: url('{{ m.background_image }}'); background-size: cover; background-position: center;{% endif %}">
+            <div style="width: 80px; height: 80px; margin: 0 auto 15px; display: flex; align-items: center; justify-content: center;">
+                {% if m.badge_icon %}
+                <img src="{{ m.badge_icon }}" alt="{{ m.name }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%; border: 4px solid {{ m.badge_color }}; box-shadow: 0 0 15px rgba(0,0,0,0.3);">
+                {% else %}
+                <div style="width: 70px; height: 70px; border-radius: 50%; background-color: {{ m.badge_color }}; display: flex; align-items: center; justify-content: center; font-size: 2rem; border: 4px solid white; box-shadow: 0 0 15px rgba(0,0,0,0.3);">💎</div>
+                {% endif %}
+            </div>
+            <h2 style="margin: 0; font-size: 1.4rem; color: white; text-shadow: 0 2px 4px rgba(0,0,0,0.6);">{{ m.name }}</h2>
+            <p style="font-size: 1.4rem; font-weight: bold; color: white; margin-top: 5px; text-shadow: 0 2px 4px rgba(0,0,0,0.6);">${{ "%.2f"|format(m.price) }}</p>
+        </div>
+
+        <!-- Cuerpo de beneficios -->
+        <div style="padding: 20px; text-align: left; flex: 1; display: flex; flex-direction: column;">
+            {% if m.description %}
+            <p style="color: var(--muted); font-size: 0.9rem; margin: 0 0 15px;">{{ m.description }}</p>
+            {% endif %}
+            <h4 style="margin: 0 0 12px; color: var(--muted); border-bottom: 1px solid var(--border); padding-bottom: 8px;">Beneficios Incluidos</h4>
+            <ul style="list-style: none; padding: 0; margin: 0; color: var(--text); font-size: 0.95rem; flex: 1;">
+                {% if m.cashback_percent > 0 %}
+                <li style="margin-bottom: 8px;">✨ Cashback: <strong style="color: {{ m.badge_color }};">{{ m.cashback_percent }}%</strong></li>
+                {% endif %}
+                {% if m.discount_percent > 0 %}
+                <li style="margin-bottom: 8px;">🏷️ Descuento en canjes: <strong style="color: {{ m.badge_color }};">{{ m.discount_percent }}%</strong></li>
+                {% endif %}
+                {% if m.drinks_count > 0 %}
+                <li style="margin-bottom: 8px;">☕ Bebidas por mes: <strong>{{ m.drinks_count }}</strong></li>
+                {% endif %}
+                {% if m.grain_bags > 0 %}
+                <li style="margin-bottom: 8px;">🌾 Bolsas de grano: <strong>{{ m.grain_bags }}</strong></li>
+                {% endif %}
+                {% if m.cashback_percent == 0 and m.discount_percent == 0 and m.drinks_count == 0 and m.grain_bags == 0 %}
+                <li style="color: var(--muted);">Sin beneficios adicionales</li>
+                {% endif %}
+            </ul>
+            <div style="margin-top: 15px; text-align: center; padding-top: 15px; border-top: 1px dashed var(--border);">
+                <span style="font-size: 0.85rem; color: var(--muted);">
+                    {% if m.is_default %}⭐ Sin vencimiento{% else %}📅 Vigencia de 30 días{% endif %}
+                </span>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div style="text-align: center; margin-top: 30px;">
+    <p class="muted">¿Tienes una tarjeta Júbilo? Pregunta en caja cómo activar tu membresía.</p>
+</div>
+{% else %}
+<div class="auth-card" style="max-width: 500px; margin: 40px auto;">
+    <p class="muted">No hay membresías disponibles por el momento.</p>
+</div>
+{% endif %}
+{% endblock %}

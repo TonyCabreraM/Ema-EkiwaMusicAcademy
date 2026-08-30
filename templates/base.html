@@ -39,6 +39,7 @@
                 <div class="sidebar-divider"></div>
                 <a href="{{ url_for('dashboard') }}" class="sidebar-link">📊 Panel</a>
                 <a href="{{ url_for('generate') }}" class="sidebar-link">➕ Generar</a>
+                <a href="{{ url_for('planes') }}" class="sidebar-link">💎 Planes</a>
                 {% if session.get('is_superuser') or session.get('is_marketing') %}
                 <a href="{{ url_for('notifications') }}" class="sidebar-link" id="notif-link" style="position:relative;">
                     🔔 Notificaciones

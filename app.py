@@ -108,11 +108,16 @@ def create_app():
             "url": target_url
         }
         
-        # Imagen grande para la notificacion (big_picture en Android, chrome_web_image en Chrome)
+        # Imagen grande para la notificacion:
+        # - big_picture: Android
+        # - chrome_web_image: Chrome (web)
+        # - adm_big_picture: Amazon
+        # - ios_attachments: iOS (requiere formato {"id": "URL"})
         if image_url:
             payload["big_picture"] = image_url
             payload["chrome_web_image"] = image_url
             payload["adm_big_picture"] = image_url
+            payload["ios_attachments"] = {"id": image_url}
         
         try:
             response = requests.post(
@@ -517,6 +522,13 @@ def create_app():
         db.session.commit()
         flash("Tipo de membresa eliminado", "success")
         return redirect(url_for("memberships"))
+
+    @app.route("/planes")
+    def planes():
+        """Vista pública de membresías para clientes (no requiere login)."""
+        memberships_list = MembershipType.query.filter_by(is_active=True).order_by(MembershipType.price.asc()).all()
+        default_membership = get_default_membership()
+        return render_template("planes.html", memberships=memberships_list, default_membership=default_membership)
 
     def get_default_membership():
         """Obtiene la membresía marcada como por defecto"""
