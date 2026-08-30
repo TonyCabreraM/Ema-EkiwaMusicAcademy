@@ -1,0 +1,41 @@
+# =====================================================================
+# render.yaml — Blueprint de Render (SOLO aplica si se usa la función
+# "Blueprint", que es de pago).
+# ---------------------------------------------------------------------
+# ⚠️  En el deploy actual de JubiloQr este archivo NO se usa, porque
+# el servicio se creó MANUALMENTE desde el dashboard. La configuración
+# real vive en el dashboard de Render:
+#   - Build Command:  pip install -r requirements.txt
+#   - Start Command:  gunicorn --bind 0.0.0.0:$PORT --workers=1 --timeout=120 app:app
+#   - Env var:        DATABASE_URL = <Internal Database URL del Postgres>
+#   - Env vars:       ONESIGNAL_APP_ID y ONESIGNAL_REST_API_KEY
+# Se conserva como referencia por si algún día se migra a un Blueprint.
+# =====================================================================
+
+services:
+  - type: web
+    name: JubiloQr
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers=1 --timeout=120 app:app
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PUBLIC_BASE_URL
+        value: https://jubiloqrv2.onrender.com
+      - key: ONESIGNAL_APP_ID
+        sync: false
+      - key: ONESIGNAL_REST_API_KEY
+        sync: false
+      - key: ONESIGNAL_SAFARI_WEB_ID
+        sync: false
+      # Base de datos persistente (PostgreSQL de Render).
+      # IMPORTANTE: sin esto la app usa SQLite en disco efímero y
+      # las tarjetas se pierden con cada deploy.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: jubilo-db
+          property: connectionString
+
+databases:
+  - name: jubilo-db

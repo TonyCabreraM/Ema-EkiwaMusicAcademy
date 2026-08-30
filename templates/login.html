@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Ingresar{% endblock %}
+
+{% block content %}
+<div class="auth-card">
+
+
+    <h1>🔐 Acceso Administrador</h1>
+    <p class="muted">Ingresa tus credenciales para continuar</p>
+    
+    <form method="POST" action="{{ url_for('login') }}" class="form form-narrow">
+        <label>Usuario
+            <input type="text" name="username" required placeholder="admin" autofocus>
+        </label>
+        
+        <label>Contraseña
+            <input type="password" name="password" required placeholder="••••••••">
+        </label>
+        
+        <button type="submit" class="btn btn-primary btn-block">Ingresar</button>
+    </form>
+    
+    <p class="small muted" style="margin-top: 20px;">
+        ⚠️ Por defecto: admin / admin123<br>
+        Cambia esto inmediatamente en producción
+    </p>
+</div>
+{% endblock %}

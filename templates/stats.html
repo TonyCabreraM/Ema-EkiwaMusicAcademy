@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Estadísticas · Júbilo{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>💰 Estadísticas de Dinero</h1>
+    <p class="muted">Resumen financiero completo del sistema (solo administradores)</p>
+    <div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+        <a href="/stats/download" class="btn btn-primary">📥 Descargar Excel (CSV)</a>
+        <button onclick="confirmarReinicio()" class="btn btn-danger">🔄 Reiniciar mes</button>
+    </div>
+</div>
+
+
+
+<!-- Totales principales -->
+<div class="stats">
+    <div class="stat-card">
+        <span class="stat-value">${{ "%.2f"|format(stats.total_cargas) }}</span>
+        <span class="stat-label">💵 Total Cargas</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-value">${{ "%.2f"|format(stats.total_canjes) }}</span>
+        <span class="stat-label">💸 Total Canjes</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-value">${{ "%.2f"|format(stats.total_balance_actual) }}</span>
+        <span class="stat-label">💰 Saldo Actual Total</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-value">{{ stats.total_transacciones }}</span>
+        <span class="stat-label">🔄 Transacciones</span>
+    </div>
+</div>
+
+<!-- Promedios y tarjetas -->
+<div class="stats">
+    <div class="stat-card">
+        <span class="stat-value">${{ "%.2f"|format(stats.promedio_carga) }}</span>
+        <span class="stat-label">📊 Promedio por Carga</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-value">${{ "%.2f"|format(stats.promedio_canje) }}</span>
+        <span class="stat-label">📉 Promedio por Canje</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-value">{{ stats.tarjetas_con_saldo }}</span>
+        <span class="stat-label">💳 Con Saldo</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-value">{{ stats.tarjetas_agotadas }}</span>
+        <span class="stat-label">🈳 Agotadas</span>
+    </div>
+</div>
+
+<!-- Actividad por período -->
+<div class="page-header" style="margin-top: 2rem;">
+    <h1>📅 Actividad por Período</h1>
+</div>
+
+<div class="table-responsive">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Período</th>
+                <th>Cargas</th>
+                <th>Canjes</th>
+                <th>Neto</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Hoy</strong></td>
+                <td style="color: var(--success);">${{ "%.2f"|format(stats.cargas_hoy) }}</td>
+                <td style="color: var(--danger);">${{ "%.2f"|format(stats.canjes_hoy) }}</td>
+                <td>${{ "%.2f"|format(stats.cargas_hoy + stats.canjes_hoy) }}</td>
+            </tr>
+            <tr>
+                <td><strong>Últimos 7 días</strong></td>
+                <td style="color: var(--success);">${{ "%.2f"|format(stats.cargas_semana) }}</td>
+                <td style="color: var(--danger);">${{ "%.2f"|format(stats.canjes_semana) }}</td>
+                <td>${{ "%.2f"|format(stats.cargas_semana + stats.canjes_semana) }}</td>
+            </tr>
+            <tr>
+                <td><strong>Últimos 30 días</strong></td>
+                <td style="color: var(--success);">${{ "%.2f"|format(stats.cargas_mes) }}</td>
+                <td style="color: var(--danger);">${{ "%.2f"|format(stats.canjes_mes) }}</td>
+                <td>${{ "%.2f"|format(stats.cargas_mes + stats.canjes_mes) }}</td>
+            </tr>
+            <tr>
+                <td><strong>Total histórico</strong></td>
+                <td style="color: var(--success);">${{ "%.2f"|format(stats.total_cargas) }}</td>
+                <td style="color: var(--danger);">${{ "%.2f"|format(stats.total_canjes) }}</td>
+                <td>${{ "%.2f"|format(stats.total_cargas + stats.total_canjes) }}</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Movimiento por día (últimos 7 días) -->
+<div class="page-header" style="margin-top: 2rem;">
+    <h1>📆 Movimiento Diario (últimos 7 días)</h1>
+</div>
+
+<div class="table-responsive">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Cargas</th>
+                <th>Canjes</th>
+                <th>Neto</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for dia in stats.transacciones_por_dia %}
+            <tr>
+                <td><strong>{{ dia.fecha }}</strong></td>
+                <td style="color: var(--success);">${{ "%.2f"|format(dia.cargas) }}</td>
+                <td style="color: var(--danger);">${{ "%.2f"|format(dia.canjes) }}</td>
+                <td>${{ "%.2f"|format(dia.cargas + dia.canjes) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Últimas transacciones -->
+<div class="page-header" style="margin-top: 2rem;">
+    <h1>🕘 Últimas Transacciones</h1>
+</div>
+
+{% if stats.ultimas_transacciones %}
+<div class="table-responsive">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Tarjeta</th>
+                <th>Tipo</th>
+                <th>Monto</th>
+                <th>Nota</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tx in stats.ultimas_transacciones %}
+            <tr>
+                <td>{{ tx.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td><code>{{ tx.card.code[:8] }}...</code></td>
+                <td>
+                    {% if tx.type == 'carga' %}
+                    <span class="badge badge-green">Carga</span>
+                    {% else %}
+                    <span class="badge badge-red">Canje</span>
+                    {% endif %}
+                </td>
+                <td style="font-weight: 700;">${{ "%.2f"|format(tx.amount) }}</td>
+                <td>{{ tx.note or '—' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<p class="muted">📭 No hay transacciones registradas todavía.</p>
+{% endif %}
+
+<script>
+    function confirmarReinicio() {
+        const confirmar = confirm("⚠️ ¿Estás seguro? Esto eliminará TODAS las transacciones del mes actual. Esta acción no se puede deshacer.\n\n¿Continuar?");
+        if (!confirmar) return;
+        
+        fetch('/stats/reset', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.ok) {
+                alert('✅ ' + data.message);
+                location.reload();
+            } else {
+                alert('❌ Error: ' + data.error);
+            }
+        })
+        .catch(e => {
+            alert('❌ Error al comunicarse con el servidor: ' + e.message);
+        });
+    }
+</script>
+{% endblock %}

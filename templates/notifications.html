@@ -1,0 +1,177 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Notificaciones · Júbilo{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>🔔 Notificaciones</h1>
+    <p class="muted">Crea y gestiona las notificaciones que verás en el sistema</p>
+</div>
+
+
+
+<!-- Botón para activar notificaciones push -->
+<div style="margin-bottom: 20px; text-align: center;">
+    <button id="enablePushBtn" class="btn btn-primary" onclick="togglePushNotifications()">
+        🔔 Activar notificaciones push del navegador
+    </button>
+    <p id="pushStatus" class="muted small" style="margin-top: 10px;"></p>
+</div>
+
+<!-- Crear nueva notificación -->
+<div class="auth-card" style="max-width: 600px; margin: 20px auto;">
+    <h3>➕ Crear nueva notificación</h3>
+    <form method="POST" action="{{ url_for('notifications') }}" class="form" style="margin-top: 20px;">
+        <label>Título
+            <input type="text" name="title" required maxlength="140"
+                   placeholder="Ej. ¡Nueva promoción disponible!">
+            <small class="muted">Máximo 140 caracteres</small>
+        </label>
+
+        <label>Mensaje
+            <textarea name="message" rows="4" required maxlength="1000"
+                      placeholder="Escribe aquí el contenido de la notificación…"></textarea>
+            <small class="muted">Máximo 1000 caracteres</small>
+        </label>
+
+        <button type="submit" class="btn btn-primary btn-block">📢 Publicar notificación</button>
+    </form>
+</div>
+
+<!-- Lista de notificaciones -->
+{% if notifications %}
+<div style="overflow-x: auto; margin-top: 20px;">
+<table class="table">
+    <thead>
+        <tr>
+            <th>Título</th>
+            <th>Mensaje</th>
+            <th>Creada por</th>
+            <th>Fecha</th>
+            <th>Acciones</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for notif in notifications %}
+        <tr>
+            <td><strong>{{ notif.title }}</strong></td>
+            <td style="max-width: 400px; white-space: normal; word-wrap: break-word;">{{ notif.message }}</td>
+            <td style="white-space: nowrap;">👤 {{ notif.created_by.username if notif.created_by else '—' }}</td>
+            <td style="white-space: nowrap;">{{ notif.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td>
+                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                    <button type="button"
+                            onclick="reenviarWhatsApp({{ notif.id }})"
+                            class="btn btn-sm btn-whatsapp"
+                            id="reenviar-btn-{{ notif.id }}">
+                        💬 Reenviar
+                    </button>
+                    <form method="POST" action="{{ url_for('delete_notification', notification_id=notif.id) }}"
+                          style="display: inline;"
+                          onsubmit="return confirm('¿Eliminar esta notificación?');">
+                        <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% else %}
+<p class="muted">No hay notificaciones todavía. Crea la primera con el formulario de arriba.</p>
+{% endif %}
+
+<script>
+async function updatePushButtonUI() {
+    const btn = document.getElementById('enablePushBtn');
+    const status = document.getElementById('pushStatus');
+    if (!btn || !status) return;
+
+    if (!window.jubiloPush) {
+        btn.style.display = 'none';
+        return;
+    }
+
+    const state = await window.jubiloPush.getSubscriptionState();
+    btn.style.display = 'inline-block';
+
+    if (state === 'active') {
+        btn.textContent = '🔕 Desactivar notificaciones push';
+        btn.className = 'btn btn-danger';
+        status.textContent = '✅ Notificaciones push activadas. Recibirás avisos al crear nuevas notificaciones.';
+    } else if (state === 'denied') {
+        btn.textContent = '🔔 Activar notificaciones push';
+        btn.className = 'btn btn-primary';
+        status.textContent = '⚠️ Permiso denegado. Actívalo en la configuración del navegador.';
+    } else if (state === 'unsupported') {
+        btn.style.display = 'none';
+        status.textContent = '❌ Tu navegador no soporta notificaciones push.';
+    } else {
+        btn.textContent = '🔔 Activar notificaciones push';
+        btn.className = 'btn btn-primary';
+        status.textContent = 'ℹ️ Activa las notificaciones para recibir avisos en este dispositivo.';
+    }
+}
+
+window.updatePushButtonUI = updatePushButtonUI;
+
+async function togglePushNotifications() {
+    if (!window.jubiloPush) return;
+    const state = await window.jubiloPush.getSubscriptionState();
+    if (state === 'active') {
+        await window.jubiloPush.unsubscribePush();
+        await updatePushButtonUI();
+        alert('🔕 Notificaciones push desactivadas.');
+    } else {
+        const ok = await window.jubiloPush.requestPushPermissionAndSubscribe();
+        if (ok) {
+            await updatePushButtonUI();
+            alert('✅ Notificaciones push activadas correctamente.');
+        } else {
+            await updatePushButtonUI();
+        }
+    }
+}
+
+// Actualizar UI al cargar
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', updatePushButtonUI);
+} else {
+    updatePushButtonUI();
+}
+
+async function reenviarWhatsApp(notificationId) {
+    const btn = document.getElementById('reenviar-btn-' + notificationId);
+    if (!btn) return;
+    
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Enviando...';
+    
+    try {
+        const response = await fetch('/notifications/' + notificationId + '/whatsapp', {
+            method: 'POST',
+            headers: {'X-Requested-With': 'XMLHttpRequest'}
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.sent > 0) {
+                alert('✅ ' + (data.message || 'Notificación push enviada a ' + data.sent + ' dispositivo(s).'));
+            } else {
+                alert('⚠️ No hay dispositivos suscritos a notificaciones push.\nLos usuarios deben activar las notificaciones desde su navegador.');
+            }
+        } else {
+            const error = await response.json();
+            alert('❌ Error: ' + (error.error || 'Error desconocido'));
+        }
+    } catch (error) {
+        alert('❌ Error de conexión: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+}
+</script>
+{% endblock %}

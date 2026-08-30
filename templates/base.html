@@ -1,0 +1,201 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Júbilo{% endblock %}</title>
+    
+    <!-- Estilos -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    
+    <!-- Favicon (icono de pestaña del navegador) -->
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='favicon.png') }}">
+    
+    <!-- Web App Manifest (Requerido para OneSignal/PWA) -->
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Botón Hamburguesa -->
+    <button class="menu-toggle" id="menuToggle" aria-label="Abrir menú">
+        <span></span><span></span><span></span>
+    </button>
+
+    <!-- Overlay oscuro -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Menú Lateral Desplegable -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <a href="{{ url_for('dashboard') }}" class="brand">🎁 Júbilo</a>
+            <button class="sidebar-close" id="sidebarClose" aria-label="Cerrar menú">✕</button>
+        </div>
+        <nav class="sidebar-nav">
+            {% if session.get('admin_id') %}
+                <div class="sidebar-user">👤 {{ session.get('admin_username', 'Admin') }}</div>
+                <div class="sidebar-divider"></div>
+                <a href="{{ url_for('dashboard') }}" class="sidebar-link">📊 Panel</a>
+                <a href="{{ url_for('generate') }}" class="sidebar-link">➕ Generar</a>
+                {% if session.get('is_superuser') or session.get('is_marketing') %}
+                <a href="{{ url_for('notifications') }}" class="sidebar-link" id="notif-link" style="position:relative;">
+                    🔔 Notificaciones
+                    <span id="notif-badge" style="display:none;position:absolute;top:50%;right:1rem;transform:translateY(-50%);background:#e74c3c;color:white;border-radius:50%;min-width:20px;height:20px;font-size:12px;line-height:20px;text-align:center;font-weight:bold;padding:0 5px;"></span>
+                </a>
+                {% endif %}
+                {% if session.get('is_superuser') %}
+                <a href="{{ url_for('memberships') }}" class="sidebar-link">💎 Membresías</a>
+                <a href="{{ url_for('stats') }}" class="sidebar-link">📈 Estadísticas</a>
+                <a href="{{ url_for('backup') }}" class="sidebar-link">💾 Backup</a>
+                <a href="{{ url_for('users') }}" class="sidebar-link">👥 Usuarios</a>
+                {% endif %}
+                <div class="sidebar-divider"></div>
+                <a href="{{ url_for('logout') }}" class="sidebar-link sidebar-link-danger">🚪 Salir</a>
+            {% else %}
+                <a href="{{ url_for('login') }}" class="sidebar-link">🔑 Ingresar</a>
+            {% endif %}
+        </nav>
+    </aside>
+
+    <!-- Contenido Principal -->
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>🎁 Júbilo | Tarjetas de regalo con QR</p>
+    </footer>
+
+    {% block extra_js %}{% endblock %}
+
+    {% if has_onesignal %}
+    <!-- OneSignal SDK (Alojado Localmente) -->
+    <script src="{{ url_for('static', filename='sdk/OneSignalSDK.page.js') }}" defer></script>
+    <script>
+        window.OneSignalDeferred = window.OneSignalDeferred || [];
+        OneSignalDeferred.push(async function(OneSignal) {
+            try {
+                console.log('Inicializando OneSignal...');
+                await OneSignal.init({
+                    appId: "{{ onesignal_app_id }}",
+                    {% if onesignal_safari_web_id %}safari_web_id: "{{ onesignal_safari_web_id }}",{% endif %}
+                    serviceWorkerParam: { scope: '/' },
+                    serviceWorkerPath: '/OneSignalSDKWorker.js',
+                    notifyButton: {
+                        enable: true,
+                    },
+                });
+                console.log('OneSignal inicializado correctamente');
+                
+                // Verificar estado de suscripción
+                const isSubscribed = await OneSignal.User.PushSubscription.isSubscribed();
+                console.log('Estado de suscripción:', isSubscribed ? 'Suscrito' : 'No suscrito');
+                
+                // Log de la configuración del Service Worker
+                console.log('Service Worker configurado en:', '/OneSignalSDKWorker.js');
+            } catch (e) {
+                console.error('Error al inicializar OneSignal:', e);
+            }
+            
+            // Exponer funciones para la UI
+            window.jubiloPush = {
+                _ready: false,
+                _onesignal: null,
+                
+                init: function(OneSignal) {
+                    this._onesignal = OneSignal;
+                    this._ready = true;
+                    console.log('jubiloPush listo');
+                    if (window.updatePushButtonUI) window.updatePushButtonUI();
+                },
+
+                requestPushPermissionAndSubscribe: async function() {
+                    if (!this._ready || !this._onesignal) return false;
+                    try {
+                        const isSubscribed = await this._onesignal.User.PushSubscription.isSubscribed();
+                        if (!isSubscribed) {
+                            await this._onesignal.Notifications.requestPermission(true);
+                        }
+                        return await this._onesignal.User.PushSubscription.isSubscribed();
+                    } catch (e) {
+                        console.error('Error OneSignal:', e);
+                        return false;
+                    }
+                },
+                
+                unsubscribePush: async function() {
+                    if (!this._ready || !this._onesignal) return;
+                    await this._onesignal.User.PushSubscription.optOut();
+                },
+                
+                getSubscriptionState: async function() {
+                    if (!this._ready || !this._onesignal) return 'loading';
+                    try {
+                        const subscribed = await this._onesignal.User.PushSubscription.isSubscribed();
+                        return subscribed ? 'active' : 'inactive';
+                    } catch (e) {
+                        return 'error';
+                    }
+                }
+            };
+
+            // Notificar a jubiloPush que OneSignal está listo
+            window.jubiloPush.init(OneSignal);
+        });
+    </script>
+    {% else %}
+    <script>
+        window.jubiloPush = {
+            requestPushPermissionAndSubscribe: async function() { return false; },
+            unsubscribePush: async function() {},
+            getSubscriptionState: async function() { return 'unsupported'; }
+        };
+    </script>
+    {% endif %}
+
+    <!-- Control del Menú Lateral -->
+    <script>
+        (function() {
+            const toggle = document.getElementById('menuToggle');
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            const closeBtn = document.getElementById('sidebarClose');
+
+            function openMenu() {
+                sidebar.classList.add('active');
+                overlay.classList.add('active');
+                toggle.classList.add('active');
+            }
+
+            function closeMenu() {
+                sidebar.classList.remove('active');
+                overlay.classList.remove('active');
+                toggle.classList.remove('active');
+            }
+
+            function toggleMenu() {
+                if (sidebar.classList.contains('active')) {
+                    closeMenu();
+                } else {
+                    openMenu();
+                }
+            }
+
+            toggle.addEventListener('click', toggleMenu);
+            closeBtn.addEventListener('click', closeMenu);
+            overlay.addEventListener('click', closeMenu);
+
+            // Cerrar con tecla Escape
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && sidebar.classList.contains('active')) {
+                    closeMenu();
+                }
+            });
+        })();
+    </script>
+</body>
+</html>
+

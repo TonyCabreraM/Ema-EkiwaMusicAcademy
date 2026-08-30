@@ -1,0 +1,10 @@
+Flask==3.0.3
+Flask-SQLAlchemy==3.1.1
+qrcode[pil]==7.4.2
+Werkzeug==3.0.3
+gunicorn==22.0.0
+psycopg[binary]==3.2.13
+python-dotenv==1.0.1
+openpyxl==3.1.5
+PyPDF2==3.0.1
+requests>=2.31.0

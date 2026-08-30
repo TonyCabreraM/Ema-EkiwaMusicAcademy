@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+
+# Flask / local runtime
+instance/
+.env
+.env.*
+*.db
+*.sqlite
+*.sqlite3
+
+# Local backups and sensitive exports
+JubiloBackup.json
+*.bak
+*.backup
+
+# Tooling and OS files
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

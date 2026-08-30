@@ -1,0 +1,664 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{{ card.client_name }} · Júbilo{% endblock %}
+
+{% block content %}
+<!-- Ocultar elementos de navegación SOLO si no hay sesión de administrador (Vista de Cliente) -->
+{% if not session.get('admin_id') %}
+<style>
+    .menu-toggle, .sidebar, .sidebar-overlay, .footer { display: none !important; }
+    .container { max-width: 100%; padding: 20px; }
+</style>
+{% endif %}
+
+<div class="card-view" style="max-width: 500px; margin: 20px auto;">
+    <!-- Visual de la Tarjeta -->
+    <div class="card-visual" style="{% if card.membership_type and card.membership_type.background_image %}background-image: url('{{ card.membership_type.background_image }}'); background-size: cover; background-position: center;{% endif %}">
+        
+        <!-- Distintivo de Membresía (Icono Redondo con Borde) -->
+        {% if card.membership_type %}
+        <div style="margin-bottom: 15px;">
+            {% if card.membership_type.badge_icon %}
+            <img src="{{ card.membership_type.badge_icon }}" alt="Distintivo" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; border: 4px solid {{ card.membership_type.badge_color }}; box-shadow: 0 0 15px rgba(0,0,0,0.3);">
+            {% else %}
+            <div style="width: 70px; height: 70px; border-radius: 50%; background-color: {{ card.membership_type.badge_color }}; margin: 0 auto; border: 4px solid white; display: flex; align-items: center; justify-content: center; font-size: 2rem; box-shadow: 0 0 15px rgba(0,0,0,0.3);">💎</div>
+            {% endif %}
+        </div>
+        
+        <div style="background: rgba(0,0,0,0.7); padding: 5px 15px; border-radius: 20px; display: inline-block; margin-bottom: 10px; border: 1px solid {{ card.membership_type.badge_color }};">
+            <span style="color: var(--cream); font-weight: 700; font-size: 0.9rem;">{{ card.membership_type.name }}</span>
+        </div>
+        {% endif %}
+
+        <h2>{{ card.client_name }}</h2>
+        {% if card.phone %}<p class="muted small">📱 {{ card.phone }}</p>{% endif %}
+        
+        <p class="balance">Saldo disponible</p>
+        <p class="balance-amount">${{ "%.2f"|format(card.balance) }}</p>
+        
+        {% if card.membership_type and card.membership_expires_at %}
+        <div style="margin-top: 15px; padding: 10px; background: rgba(0,0,0,0.6); border-radius: 8px; border: 1px solid {{ card.membership_type.badge_color }};">
+            <p style="color: var(--cream); margin: 0; font-size: 0.9rem;">
+                📅 Vence: {{ card.membership_expires_at.strftime('%d/%m/%Y') }}
+            </p>
+        </div>
+        {% endif %}
+        
+        <!-- Contenedor Flex para QR y Beneficios -->
+        <div style="display: flex; gap: 20px; align-items: center; justify-content: center; margin-top: 20px; flex-wrap: wrap;">
+            <img src="{{ url_for('card_qr', code=card.code) }}" alt="Código QR" class="qr-img" style="margin: 0;">
+            
+            {% if card.membership_type %}
+            <div style="text-align: left; background: rgba(62, 39, 35, 0.85); padding: 15px; border-radius: 10px; border: 2px solid {{ card.membership_type.badge_color }}; min-width: 200px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+                <h4 style="margin: 0 0 10px; color: {{ card.membership_type.badge_color }}; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Beneficios Activos</h4>
+                <ul style="list-style: none; padding: 0; margin: 0; font-size: 0.9rem; color: #F5E9D8;">
+                    {% if card.membership_type.cashback_percent > 0 %}
+                    <li>✨ <strong>{{ card.membership_type.cashback_percent }}%</strong> Cashback en canjes</li>
+                    {% endif %}
+                    {% if card.membership_type.discount_percent > 0 %}
+                    <li>🏷️ <strong>{{ card.membership_type.discount_percent }}%</strong> Descuento en canjes</li>
+                    {% endif %}
+                    {% if card.membership_type.drinks_count > 0 %}
+                    <li>☕ <strong>{{ card.membership_type.drinks_count }}</strong> Bebidas/mes</li>
+                    {% endif %}
+                    {% if card.membership_type.grain_bags > 0 %}
+                    <li>🌾 <strong>{{ card.membership_type.grain_bags }}</strong> Bolsas de grano</li>
+                    {% endif %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+        <p class="muted small">Escanea para ver tu tarjeta</p>
+        
+        <!-- Botones de Descarga -->
+        <div style="margin-top: 15px;">
+            <a href="{{ url_for('whatsapp_image', code=card.code, dl=1) }}" download="tarjeta_{{ card.code }}.png" 
+               class="btn btn-sm">⬇ Descargar mi tarjeta</a>
+        </div>
+    </div>
+
+    <!-- Acciones del Administrador o Cliente -->
+    <div class="card-actions">
+        {% if is_admin %}
+            <h3>🛠️ Acciones de Administrador</h3>
+            
+            {% if wa_image_url %}
+            <div style="background: var(--card); border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                <strong>💬 Enviar por WhatsApp</strong>
+                <p style="font-size: 0.9rem; margin: 8px 0; color: var(--muted);">
+                    La imagen se copiará y se abrirá WhatsApp con <strong>{{ card.phone }}</strong>
+                </p>
+                
+                <!-- Campo para editar mensaje personalizado -->
+                <label style="display: block; margin-bottom: 8px; font-weight: 600; font-size: 0.9rem;">
+                    ✏️ Mensaje personalizado:
+                </label>
+                <textarea id="customMessage" rows="3" maxlength="500" 
+                          style="width: 100%; padding: 0.75rem; border: 2px solid var(--border); border-radius: 8px; 
+                                 background: var(--bg); color: var(--text); font-size: 0.9rem; resize: vertical; margin-bottom: 12px;"
+                          placeholder="Ej. ¡Feliz cumpleaños! Disfruta tu regalo...">{{ card.custom_message or '' }}</textarea>
+                
+                <button onclick="enviarWhatsApp('{{ card.phone }}', '{{ card.code }}')" 
+                        class="btn btn-whatsapp btn-block" id="btnWhatsApp">
+                    💬 Enviar Tarjeta por WhatsApp
+                </button>
+                <p id="waStatus" style="font-size: 0.85rem; margin-top: 8px; color: var(--success); display: none;">
+                    ✅ ¡Imagen copiada! Ahora presiona <strong>Ctrl+V</strong> en el chat de WhatsApp
+                </p>
+
+                <!-- ===== ALTERNATIVA: enviar como TEXTO (funciona en cualquier dispositivo) ===== -->
+                <div style="border-top: 1px dashed var(--border); margin-top: 15px; padding-top: 15px;">
+                    <p style="font-size: 0.9rem; margin: 0 0 10px; color: var(--muted);">
+                        ✨ <strong>Opción rápida:</strong> envía el mismo contenido en <strong>texto</strong>
+                        (nombre, saldo y enlace de la tarjeta). No requiere copiar ni adjuntar imágenes.
+                    </p>
+                    <!-- Datos generados en el servidor para armar el mensaje -->
+                    <input type="hidden" id="waTextName" value="{{ card.client_name }}">
+                    <input type="hidden" id="waTextBalance" value="{{ '%.2f'|format(card.balance) }}">
+                    <input type="hidden" id="waTextUrl" value="{{ request.url_root }}card/{{ card.code }}">
+                    <button onclick="enviarWhatsAppTexto('{{ card.phone }}')" 
+                            class="btn btn-block" id="btnWhatsAppTexto"
+                            style="background: #e7f8ec; color: #128C7E; border: 2px solid #25D366;">
+                        📝 Enviar Texto por WhatsApp
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Modal de vista previa -->
+            <div id="previewModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+                 background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center;">
+                <div style="background: var(--card); border-radius: 16px; padding: 2rem; max-width: 500px; width: 90%; text-align: center;">
+                    <h3 style="margin-bottom: 1rem;">📱 Vista previa de la imagen</h3>
+                    <img id="previewImg" src="" style="max-width: 100%; border-radius: 12px; margin-bottom: 1rem;" alt="Vista previa">
+                    <div style="display: flex; gap: 10px; justify-content: center;">
+                        <button onclick="confirmarEnvioWhatsApp()" class="btn btn-whatsapp">✅ Confirmar y Enviar</button>
+                        <button onclick="cerrarPreview()" class="btn">❌ Cancelar</button>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Recargar Saldo -->
+            <form method="POST" action="{{ url_for('add_balance', code=card.code) }}" class="form">
+                <label>💰 Recargar Saldo ($)</label>
+                <input type="number" name="amount" step="0.01" min="0.01" required placeholder="100.00">
+                <button type="submit" class="btn btn-primary">Recargar</button>
+            </form>
+            
+            <!-- Canjear Saldo -->
+            <form method="POST" action="{{ url_for('redeem', code=card.code) }}" class="form">
+                <label>💸 Canjear / Retirar Saldo ($)</label>
+                <input type="number" name="amount" step="0.01" min="0.01" 
+                       required max="{{ card.balance }}" 
+                       placeholder="Máximo: ${{ "%.2f"|format(card.balance) }}">
+                <button type="submit" class="btn btn-danger">Canjear</button>
+            </form>
+            
+            <hr style="margin: 20px 0; border: none; border-top: 1px solid var(--border);">
+            
+            <!-- Gestión de Membresía con Selector Visual -->
+            <div style="background: var(--card); border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                <h4>💎 Cambiar Membresía</h4>
+                
+                <form method="POST" action="{{ url_for('add_membership', code=card.code) }}">
+                    <label style="display: block; margin-bottom: 10px;">
+                        <small>Selecciona la membresía para vincular</small>
+                        <div style="display: flex; gap: 10px; align-items: center; margin-top: 5px;">
+                            <button type="button" onclick="openCardMembershipSelector()" class="btn btn-sm" style="flex: 1;">
+                                🖼️ Seleccionar Membresía
+                            </button>
+                            <div id="card_membership_preview" style="display: flex; align-items: center; gap: 10px; padding: 5px 12px; border: 2px solid var(--border); border-radius: 8px; background: var(--bg); min-width: 120px;">
+                                <span id="card_membership_name" style="color: var(--text); font-size: 14px;">
+                                    {% if card.membership_type %}
+                                    {{ card.membership_type.name }}
+                                    {% else %}
+                                    <span style="color: var(--muted);">Ninguna</span>
+                                    {% endif %}
+                                </span>
+                            </div>
+                        </div>
+                        <input type="hidden" id="card_selected_membership_id" name="membership_type_id" value="{{ card.membership_type_id or '' }}">
+                        <small class="muted" style="display: block; margin-top: 5px;">
+                            {% if card.membership_type %}
+                            Actual: <strong style="color: {{ card.membership_type.badge_color }};">{{ card.membership_type.name }}</strong>
+                            {% if card.membership_expires_at %}(Vence: {{ card.membership_expires_at.strftime('%d/%m/%Y') }}){% else %}(Sin vencimiento){% endif %}
+                            {% else %}
+                            Sin membresía asignada.
+                            {% endif %}
+                        </small>
+                    </label>
+                    
+                    <button type="submit" class="btn btn-sm btn-primary" style="width: 100%; margin-top: 5px;">
+                        🔗 Vincular membresía
+                    </button>
+                </form>
+                
+                <!-- Modal de Selección de Membresía (Card) -->
+                <div id="cardMembershipSelectorModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.8); z-index:3000; align-items:center; justify-content:center; overflow-y: auto;">
+                    <div style="background:var(--card); border-radius:16px; padding:2rem; max-width:600px; width:90%; position:relative; border: 2px solid var(--border); margin: 20px auto; max-height: 90vh; overflow-y: auto;">
+                        <button onclick="closeCardMembershipSelector()" style="position:absolute; top:10px; right:15px; background:none; border:none; color:white; font-size:1.5rem; cursor:pointer;">✕</button>
+                        <h3>💎 Seleccionar Membresía</h3>
+                        <p class="muted">Haz clic en la membresía que deseas vincular a esta tarjeta.</p>
+                        
+                        <!-- Opción sin membresía -->
+                        <div onclick="selectCardMembership('', 'Ninguna', 'var(--border)')" style="display: flex; align-items: center; gap: 15px; padding: 15px; margin: 10px 0; border-radius: 12px; cursor: pointer; border: 2px solid transparent; background: var(--bg);">
+                            <div style="width: 50px; height: 50px; border-radius: 50%; background: #444; display: flex; align-items: center; justify-content: center; font-size: 20px; color: #888;">🚫</div>
+                            <div>
+                                <div style="font-weight: bold;">Sin membresía</div>
+                                <div style="font-size: 13px; color: var(--muted);">No vincular ninguna membresía</div>
+                            </div>
+                        </div>
+                        
+                        {% for m in membership_types %}
+                        <div onclick="selectCardMembership('{{ m.id }}', '{{ m.name }}', '{{ m.badge_color }}')" style="display: flex; align-items: center; gap: 15px; padding: 15px; margin: 10px 0; border-radius: 12px; cursor: pointer; border: 2px solid transparent; background: var(--bg);">
+                            <!-- Logo de la membresía -->
+                            <div style="width: 50px; height: 50px; border-radius: 50%; border: 3px solid {{ m.badge_color }}; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #222;">
+                                {% if m.badge_icon %}
+                                {% set icon_path = m.badge_icon %}
+                                {% if icon_path.startswith('/') %}{% set icon_path = icon_path[1:] %}{% endif %}
+                                <img src="{{ url_for('static', filename=icon_path) }}" alt="{{ m.name }}" style="width: 40px; height: 40px; object-fit: contain;" onerror="this.style.display='none';this.parentElement.innerHTML='💎';">
+                                {% else %}
+                                <span style="font-size: 20px;">💎</span>
+                                {% endif %}
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="font-weight: bold;">{{ m.name }}</div>
+                                <div style="font-size: 13px; color: var(--muted);">
+                                    ${{ "%.2f"|format(m.price) }} · 
+                                    {% if m.is_default %}⭐ Principal (Sin vencimiento){% else %}30 días de vigencia{% endif %}
+                                    {% if m.cashback_percent > 0 %} · {{ m.cashback_percent }}% Cashback{% endif %}
+                                </div>
+                            </div>
+                            {% if m.is_default %}
+                            <span style="font-size: 12px; background: #FFD700; color: #3E2723; padding: 2px 10px; border-radius: 12px; font-weight: bold;">Default</span>
+                            {% endif %}
+                            {% if card.membership_type and card.membership_type.id == m.id %}
+                            <span style="font-size: 12px; background: #4CAF50; color: white; padding: 2px 10px; border-radius: 12px; font-weight: bold;">Actual</span>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                        
+                        <div style="margin-top: 20px; text-align: center;">
+                            <button onclick="closeCardMembershipSelector()" class="btn btn-sm">Cancelar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sección de Canje de Beneficios (se mantiene igual) -->
+                {% if card.membership_type and (card.membership_type.drinks_count > 0 or card.membership_type.grain_bags > 0) %}
+                <hr style="margin: 15px 0; border-top: 1px dashed var(--border);">
+                <h5>🎁 Beneficios del Mes</h5>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    {% if card.membership_type.drinks_count > 0 %}
+                    <div style="background: var(--bg); padding: 10px; border-radius: 6px; text-align: center; border: 1px solid var(--border);">
+                        <span style="font-size: 1.5rem;">☕</span>
+                        <p style="margin: 5px 0; font-weight: bold;">Bebidas</p>
+                        <p class="small">{{ card.drinks_redeemed_this_month or 0 }} / {{ card.membership_type.drinks_count }}</p>
+                        <form method="POST" action="{{ url_for('redeem_drink', code=card.code) }}">
+                            <button type="submit" class="btn btn-sm btn-whatsapp" {% if (card.drinks_redeemed_this_month or 0) >= card.membership_type.drinks_count %}disabled{% endif %}>Canjear</button>
+                        </form>
+                    </div>
+                    {% endif %}
+
+                    {% if card.membership_type.grain_bags > 0 %}
+                    <div style="background: var(--bg); padding: 10px; border-radius: 6px; text-align: center; border: 1px solid var(--border);">
+                        <span style="font-size: 1.5rem;">🌾</span>
+                        <p style="margin: 5px 0; font-weight: bold;">Bolsas Grano</p>
+                        <p class="small">{{ card.grain_bags_redeemed_this_month or 0 }} / {{ card.membership_type.grain_bags }}</p>
+                        <form method="POST" action="{{ url_for('redeem_grain', code=card.code) }}">
+                            <button type="submit" class="btn btn-sm btn-primary" {% if (card.grain_bags_redeemed_this_month or 0) >= card.membership_type.grain_bags %}disabled{% endif %}>Canjear</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+
+            <a href="{{ url_for('card_transactions', code=card.code) }}" class="btn btn-block">
+                📋 Ver Movimientos
+            </a>
+            
+            {% if session.get('is_superuser') %}
+            <form method="POST" action="{{ url_for('delete_card', code=card.code) }}" 
+                  style="margin-top: 15px;" onsubmit="return confirm('⚠️ ¿Estás seguro de eliminar esta tarjeta? Esta acción no se puede deshacer.')">
+                <button type="submit" class="btn btn-danger btn-block">
+                    🗑️ Eliminar Tarjeta
+                </button>
+            </form>
+            {% endif %}
+            
+        {% else %}
+            <h3>📋 Movimientos Recientes</h3>
+            
+            <!-- Notificaciones push para el cliente (OneSignal) -->
+            <div style="margin-bottom: 20px; padding: 15px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; text-align: center;">
+                <button id="enablePushBtn" class="btn btn-primary" onclick="togglePushNotifications()">
+                    🔔 Activar notificaciones de novedades
+                </button>
+                <p id="pushStatus" class="muted small" style="margin-top: 10px;">Recibe avisos cuando tu saldo cambie o haya promociones.</p>
+            </div>
+            
+            {% if recent_transactions %}
+                <div style="margin-top: 15px;">
+                    {% for tx in recent_transactions %}
+                    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-weight: 600; font-size: 0.95rem;">
+                                {% if tx.type == 'carga' %}
+                                    <span style="color: var(--success);">⬆️ Carga</span>
+                                {% else %}
+                                    <span style="color: var(--danger);">️ Canje</span>
+                                {% endif %}
+                            </div>
+                            {% if tx.note %}
+                                <div style="font-size: 0.8rem; color: var(--muted); margin-top: 4px;">{{ tx.note }}</div>
+                            {% endif %}
+                            <div style="font-size: 0.75rem; color: var(--muted); margin-top: 2px;">{{ tx.created_at.strftime('%d/%m/%Y %H:%M') }}</div>
+                        </div>
+                        <div style="font-weight: 700; font-size: 1.1rem; {% if tx.type == 'carga' %}color: var(--success);{% else %}color: var(--danger);{% endif %}">
+                            {% if tx.type == 'carga' %}+{% else %}-{% endif %}${{ "%.2f"|format(tx.amount) }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                {% if card.transactions|length > 5 %}
+                    <a href="{{ url_for('card_transactions', code=card.code) }}" class="btn btn-primary btn-block" style="margin-top: 15px;">
+                        📋 Ver Todos los Movimientos
+                    </a>
+                {% endif %}
+            {% else %}
+                <div style="text-align: center; padding: 30px; color: var(--muted);">
+                    <p style="font-size: 2rem; margin-bottom: 10px;">📭</p>
+                    <p>Aún no hay movimientos registrados</p>
+                </div>
+            {% endif %}
+        {% endif %}
+    </div>
+</div>
+
+<!-- Estadísticas de la Tarjeta -->
+<div class="stat-summary" style="margin-top: 30px; background: var(--card); padding: 20px; border-radius: 12px;">
+    <h3>📈 Resumen de la Tarjeta</h3>
+    <div class="stats">
+        <div class="stat-card" style="min-width: 150px;">
+            <span class="stat-value">{{ card.transactions|length }}</span>
+            <span class="stat-label">Total Movimientos</span>
+        </div>
+        <div class="stat-card" style="min-width: 150px;">
+            <span class="stat-value">${{ "%.2f"|format(card.balance) }}</span>
+            <span class="stat-label">Saldo Actual</span>
+        </div>
+        <div class="stat-card" style="min-width: 150px;">
+            <span class="stat-value">{{ card.created_at.strftime('%d/%m/%Y') }}</span>
+            <span class="stat-label">Fecha Creación</span>
+        </div>
+    </div>
+</div>
+
+<div style="margin-top: 20px; text-align: center;">
+    <a href="{{ url_for('dashboard') }}" class="btn">⬅ Volver al Panel</a>
+</div>
+
+<script>
+// ===== Funciones de notificaciones push para cliente (OneSignal) =====
+async function updatePushButtonUI() {
+    const btn = document.getElementById('enablePushBtn');
+    const status = document.getElementById('pushStatus');
+    if (!btn || !status) return;
+
+    // Esperar a que OneSignal esté listo si aún no lo está
+    if (!window.jubiloPush) {
+        console.log('Esperando inicialización de OneSignal...');
+        setTimeout(updatePushButtonUI, 1000);
+        return;
+    }
+
+    try {
+        const state = await window.jubiloPush.getSubscriptionState();
+        btn.style.display = 'inline-block';
+
+        if (state === 'loading') {
+            btn.textContent = '⏳ Cargando sistema...';
+            btn.className = 'btn';
+            btn.disabled = true;
+            status.textContent = 'Inicializando notificaciones...';
+        } else if (state === 'active') {
+            btn.textContent = '🔕 Desactivar notificaciones';
+            btn.className = 'btn btn-danger';
+            btn.disabled = false;
+            status.textContent = '✅ Estás suscrito. Recibirás avisos de novedades.';
+        } else {
+            btn.textContent = '🔔 Activar notificaciones de novedades';
+            btn.className = 'btn btn-primary';
+            btn.disabled = false;
+            status.textContent = 'ℹ️ Activa para recibir avisos de saldo y promociones.';
+        }
+    } catch (e) {
+        console.error('Error actualizando UI de notificaciones:', e);
+    }
+}
+
+async function togglePushNotifications() {
+    if (!window.jubiloPush) {
+        alert('El sistema de notificaciones aún se está cargando. Intenta de nuevo en unos segundos.');
+        return;
+    }
+    
+    const btn = document.getElementById('enablePushBtn');
+    if (btn) btn.disabled = true;
+
+    try {
+        const state = await window.jubiloPush.getSubscriptionState();
+        if (state === 'active') {
+            await window.jubiloPush.unsubscribePush();
+            alert('🔕 Notificaciones desactivadas.');
+        } else {
+            const ok = await window.jubiloPush.requestPushPermissionAndSubscribe();
+            if (ok) {
+                alert('✅ ¡Notificaciones activadas! Ahora recibirás avisos importantes.');
+            }
+        }
+    } catch (e) {
+        alert('❌ Ocurrió un error: ' + e.message);
+    } finally {
+        if (btn) btn.disabled = false;
+        await updatePushButtonUI();
+    }
+}
+
+// Iniciar actualización de UI
+window.addEventListener('load', updatePushButtonUI);
+
+let pendingPhone = '';
+let pendingImageUrl = '';
+let pendingImageBlob = null;    // Imagen pre-descargada (garantiza descarga en móvil)
+let pendingImageBlobUrl = null; // URL object para descargar/copiar sin volver a fetch
+let isMobile = /iPad|iPhone|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+async function enviarWhatsApp(phone, code) {
+    const btn = document.getElementById('btnWhatsApp');
+    const status = document.getElementById('waStatus');
+    const msgInput = document.getElementById('customMessage');
+    const customMsg = msgInput.value.trim();
+    
+    // Construir URL con el mensaje personalizado
+    let imageUrl = `/card/${code}/whatsapp-image`;
+    if (customMsg) {
+        imageUrl += `?msg=${encodeURIComponent(customMsg)}`;
+    }
+    
+    pendingPhone = phone;
+    pendingImageUrl = imageUrl;
+    
+    btn.disabled = true;
+    btn.innerHTML = '🕛 Generando vista previa...';
+    
+    try {
+        // Mostrar vista previa
+        const previewModal = document.getElementById('previewModal');
+        const previewImg = document.getElementById('previewImg');
+        previewImg.src = imageUrl;
+        previewModal.style.display = 'flex';
+        
+        // Pre-descargar la imagen como blob MIENTRAS el usuario ve la
+        // vista previa. Así al confirmar, la descarga y el opening de
+        // WhatsApp se hacen SINCRÓNICOS (requisito de Safari/iPad).
+        try {
+            const resp = await fetch(imageUrl);
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            pendingImageBlob = await resp.blob();
+            if (pendingImageBlobUrl) URL.revokeObjectURL(pendingImageBlobUrl);
+            pendingImageBlobUrl = URL.createObjectURL(pendingImageBlob);
+        } catch (preError) {
+            console.warn('No se pudo pre-descargar la imagen (se reintentará al confirmar):', preError);
+            pendingImageBlob = null;
+            pendingImageBlobUrl = null;
+        }
+        
+        btn.disabled = false;
+        btn.innerHTML = '💬 Enviar Tarjeta por WhatsApp';
+        
+    } catch (error) {
+        console.error('Error:', error);
+        status.innerHTML = '⚠️ Error al generar la imagen. Intenta de nuevo.';
+        status.style.color = 'var(--danger)';
+        status.style.display = 'block';
+        btn.disabled = false;
+        btn.innerHTML = '💬 Enviar Tarjeta por WhatsApp';
+    }
+}
+
+function cerrarPreview() {
+    document.getElementById('previewModal').style.display = 'none';
+}
+
+// Descarga la imagen usando el blob pre-descargado (o la URL como fallback).
+// Debe llamarse de forma SINCRÓNICA dentro del gesto del usuario.
+function descargarImagenTarjeta() {
+    const link = document.createElement('a');
+    // Prioridad: blob pre-descargado (URL object). Fallback: URL directa.
+    link.href = pendingImageBlobUrl || pendingImageUrl;
+    link.download = `tarjeta_${pendingPhone}.png`;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return !!pendingImageBlobUrl;
+}
+
+function confirmarEnvioWhatsApp() {
+    const btn = document.getElementById('btnWhatsApp');
+    const status = document.getElementById('waStatus');
+    const originalText = btn.innerHTML;
+    
+    cerrarPreview();
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Procesando...';
+    
+    const mensaje = '📍 Nuestra ubicación: https://maps.app.goo.gl/1b6eVjkVNHoDJDT57';
+    
+    // Intentar copiar imagen al portapapeles PRIMERO (funciona en PC, Android e iOS 15+)
+    // Debe ser SINCRÓNICO dentro del gesto del usuario.
+    copiarImagenAlPortapapeles()
+        .then(() => {
+            status.innerHTML = '✅ <strong>Imagen copiada al portapapeles</strong>. Abriendo WhatsApp...';
+            status.style.color = 'var(--success)';
+            status.style.display = 'block';
+            
+            // Abrir WhatsApp inmediatamente (gesto síncrono)
+            abrirWhatsAppDirecto(mensaje);
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        })
+        .catch((error) => {
+            console.warn('No se pudo copiar al portapapeles:', error);
+            
+            // Fallback para iOS antiguo u otros navegadores: descargar + abrir
+            status.innerHTML = '📱 <strong>Descarga la imagen</strong> y pégala en WhatsApp. Abriendo chat...';
+            status.style.color = '#ff9800';
+            status.style.display = 'block';
+            
+            // Descargar imagen automáticamente
+            descargarImagenTarjeta();
+            
+            // Abrir WhatsApp al número
+            abrirWhatsAppDirecto(mensaje);
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        });
+}
+
+// Copia la imagen al portapapeles usando Clipboard API (PC/Android)
+async function copiarImagenAlPortapapeles() {
+    if (!pendingImageBlob) {
+        throw new Error('No hay imagen disponible');
+    }
+    
+    // Intentar con Clipboard API (Chrome, Edge, Firefox moderno)
+    if (navigator.clipboard && navigator.clipboard.write) {
+        try {
+            const item = new ClipboardItem({
+                [pendingImageBlob.type]: pendingImageBlob
+            });
+            await navigator.clipboard.write([item]);
+            return true;
+        } catch (e) {
+            throw e;
+        }
+    }
+    
+    throw new Error('Clipboard API no disponible');
+}
+
+// Abre WhatsApp directamente al número registrado (sin selección de contacto)
+function abrirWhatsAppDirecto(mensaje) {
+    // Limpiar el número de teléfono: eliminar +, espacios, guiones y paréntesis
+    const cleanPhone = pendingPhone.replace(/[^0-9]/g, '');
+    const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(mensaje)}`;
+    
+    // En iOS, window.open con '_blank' a veces falla si no es un gesto directo.
+    // location.href es más fiable para abrir apps nativas en móviles.
+    if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+        window.location.href = waUrl;
+    } else {
+        // En PC/Android, intentamos abrir en nueva pestaña
+        const w = window.open(waUrl, '_blank');
+        if (!w) {
+            // Fallback si el popup fue bloqueado
+            window.location.href = waUrl;
+        }
+    }
+}
+
+
+
+
+// ===== ENVÍO POR TEXTO (alternativa sin imagen) =====
+// Misma información que la imagen (nombre, saldo y enlace a la tarjeta que
+// reemplaza al QR) pero como texto plano. Funciona en CUALQUIER dispositivo
+// porque window.open se llama de forma síncrona dentro del gesto del usuario
+// (sin fetch ni esperas -> el navegador/iPad no lo bloquea).
+function enviarWhatsAppTexto(phone) {
+    const nombre = document.getElementById('waTextName').value;
+    const saldo = document.getElementById('waTextBalance').value;
+    const urlTarjeta = document.getElementById('waTextUrl').value;
+    const personalizado = (document.getElementById('customMessage').value || '').trim();
+
+    let texto = '🎁 JÚBILO - Tarjeta de Regalo\n\n';
+    texto += '👤 ' + nombre + '\n';
+    texto += '💰 Saldo: $' + saldo + '\n';
+    texto += '🔗 Tu tarjeta: ' + urlTarjeta + '\n';
+    texto += '(ábrela o escanéala para ver tu saldo y movimientos)\n';
+    if (personalizado) {
+        texto += '\n📱 ' + personalizado + '\n';
+    }
+    texto += '\n📍 Nuestra ubicación: https://maps.app.goo.gl/1b6eVjkVNHoDJDT57';
+
+    const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(texto)}`;
+    const w = window.open(waUrl, '_blank');
+    if (!w) {
+        // Fallback: navegación directa si el navegador bloqueó el popup
+        location.href = waUrl;
+    }
+}
+
+// ===== Selector Visual de Membresía (Card) =====
+function openCardMembershipSelector() {
+    document.getElementById('cardMembershipSelectorModal').style.display = 'flex';
+}
+
+function closeCardMembershipSelector() {
+    document.getElementById('cardMembershipSelectorModal').style.display = 'none';
+}
+
+function selectCardMembership(id, name, color) {
+    document.getElementById('card_selected_membership_id').value = id;
+    document.getElementById('card_membership_name').textContent = name;
+    
+    const preview = document.getElementById('card_membership_preview');
+    if (id && color) {
+        preview.style.borderColor = color;
+        preview.style.borderWidth = '3px';
+        preview.style.background = color + '20';
+    } else {
+        preview.style.borderColor = 'var(--border)';
+        preview.style.borderWidth = '2px';
+        preview.style.background = 'var(--bg)';
+    }
+    
+    closeCardMembershipSelector();
+}
+
+// Restaurar selección al cargar la página
+{% if card.membership_type %}
+document.addEventListener('DOMContentLoaded', function() {
+    const preview = document.getElementById('card_membership_preview');
+    preview.style.borderColor = '{{ card.membership_type.badge_color }}';
+    preview.style.borderWidth = '3px';
+});
+{% endif %}
+</script>
+{% endblock %}
+
+

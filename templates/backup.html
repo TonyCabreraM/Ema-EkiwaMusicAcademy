@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}💾 Respaldos - Júbilo{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>💾 Respaldos de Base de Datos</h1>
+    <p class="muted">Exporta e importa todos los datos de la aplicacion</p>
+</div>
+
+
+
+<!-- Exportar -->
+<div class="auth-card" style="max-width: 700px; margin: 20px auto;">
+    <h3>📤 Exportar base de datos</h3>
+    <p class="muted">Descarga un archivo JSON con todas las tarjetas, transacciones y notificaciones. Usalo como respaldo o para migrar entre entornos.</p>
+    <a href="{{ url_for('export_backup') }}" class="btn btn-success btn-block" style="margin-top: 20px;">⬇ Descargar respaldo completo (JSON)</a>
+</div>
+
+<!-- Importar -->
+<div class="auth-card" style="max-width: 700px; margin: 20px auto;">
+    <h3>📥 Restaurar desde respaldo</h3>
+    <p class="muted">Sube un archivo JSON previamente exportado. Las tarjetas con el mismo codigo se <strong>actualizan</strong>, las nuevas se <strong>agregan</strong>. Las transacciones y notificaciones se suman a las existentes.</p>
+    <form method="POST" action="{{ url_for('import_backup') }}" enctype="multipart/form-data"
+          onsubmit="return confirm('¿Estas seguro? Esto importara datos del respaldo seleccionado.');">
+        <div class="form-group">
+            <label for="file">📁 Archivo de respaldo (.json)</label>
+            <input type="file" id="file" name="file" accept=".json" required>
+        </div>
+        <button type="submit" class="btn btn-warning btn-block">⬆ Importar respaldo</button>
+    </form>
+</div>
+
+<!-- Resumen de datos actuales -->
+<div class="auth-card" style="max-width: 700px; margin: 20px auto;">
+    <h3>📊 Datos actuales en la base</h3>
+    <ul style="list-style: none; padding: 0; margin: 0;">
+        <li style="padding: 8px 0; border-bottom: 1px solid var(--border);">🎁 <strong>{{ stats.cards }}</strong> tarjetas</li>
+        <li style="padding: 8px 0; border-bottom: 1px solid var(--border);">💰 <strong>{{ stats.transactions }}</strong> transacciones</li>
+        <li style="padding: 8px 0;">🔔 <strong>{{ stats.notifications }}</strong> notificaciones</li>
+    </ul>
+</div>
+{% endblock %}

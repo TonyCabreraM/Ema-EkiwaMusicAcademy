@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Tarjeta No Válida · Júbilo{% endblock %}
+
+{% block content %}
+<div class="auth-card">
+    <div style="font-size: 4rem; margin-bottom: 20px;">⚠️</div>
+    <h1>Tarjeta No Válido</h1>
+    <p class="muted">Lo sentimos, pero esta tarjeta no existe o está inactiva.</p>
+    
+    <p style="margin-top: 20px;">Posibles causas:</p>
+    <ul style="text-align: left; display: inline-block;">
+        <li>El código QR es incorrecto o ha sido mal escaneado</li>
+        <li>La tarjeta ha sido eliminada por el administrador</li>
+        <li>El enlace expiró</li>
+    </ul>
+    
+    <a href="{{ url_for('index') }}" class="btn btn-primary" style="margin-top: 30px;">
+        ↩ Volver al Inicio
+    </a>
+</div>
+{% endblock %}

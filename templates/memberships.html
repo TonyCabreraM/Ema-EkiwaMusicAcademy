@@ -1,0 +1,476 @@
+{% extends "base.html" %}
+
+{% block title %}Membresías · Júbilo{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>💎 Gestión de Membresías</h1>
+    <p class="muted">Define los planes de membresía, sus beneficios y porcentajes de cashback.</p>
+</div>
+
+<!-- Crear nueva membresía -->
+<div class="auth-card" style="max-width: 700px; margin: 20px auto;">
+    <h3>➕ Crear nuevo tipo de membresía</h3>
+    <form method="POST" action="{{ url_for('memberships') }}" class="form" enctype="multipart/form-data" style="margin-top: 20px;">
+        <label>Nombre de la Membresía
+            <input type="text" name="name" required placeholder="Ej. VIP Gold, Platinum...">
+        </label>
+
+        <label>Descripción / Beneficios
+            <textarea name="description" rows="3" placeholder="Ej. Acceso prioritario, descuentos especiales..."></textarea>
+        </label>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+            <label>Precio ($)
+                <input type="number" name="price" step="0.01" min="0" required placeholder="0.00">
+            </label>
+            <label>Cashback (%)
+                <input type="number" name="cashback_percent" step="0.1" min="0" max="100" required placeholder="Ej. 5">
+            </label>
+            <label>Descuento Canje (%)
+                <input type="number" name="discount_percent" step="0.1" min="0" max="100" required placeholder="Ej. 10">
+            </label>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <label>Bebidas Incluidas (Mensuales)
+                <input type="number" name="drinks_count" min="0" value="0" placeholder="Ej. 4">
+            </label>
+            <label>Bolsas de Grano (Regalo)
+                <input type="number" name="grain_bags" min="0" value="0" placeholder="Ej. 2">
+            </label>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <label>Color del Distintivo y Textos
+                <input type="color" name="badge_color" value="#FFD700" style="width: 100%; height: 40px; border: none; cursor: pointer;">
+            </label>
+            <label>Icono del Distintivo
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button type="button" onclick="openIconSelector('create')" class="btn btn-sm" style="flex: 1;">🖼️ Seleccionar Logo</button>
+                    <div id="create_icon_preview" style="width: 50px; height: 50px; border-radius: 8px; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; background: var(--bg); overflow: hidden;">
+                        <span style="color: var(--muted); font-size: 12px;">Ninguno</span>
+                    </div>
+                </div>
+                <input type="hidden" id="create_selected_icon" name="badge_icon_file" value="">
+                <small class="muted">Haz clic en "Seleccionar Logo" para elegir un icono.</small>
+            </label>
+        </div>
+
+        <label>Imagen de Fondo
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button type="button" onclick="openBgSelector('create')" class="btn btn-sm" style="flex: 1;">🖼️ Seleccionar Fondo</button>
+                <div id="create_bg_preview" style="width: 60px; height: 40px; border-radius: 6px; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; background: var(--bg); overflow: hidden;">
+                    <span style="color: var(--muted); font-size: 10px;">Ninguno</span>
+                </div>
+            </div>
+            <input type="hidden" id="create_selected_bg" name="background_image_file" value="">
+            <small class="muted">Haz clic en "Seleccionar Fondo" para elegir una imagen de fondo.</small>
+        </label>
+
+        <div style="margin-top: 15px; padding: 10px; background: rgba(255, 215, 0, 0.1); border: 1px solid #FFD700; border-radius: 8px;">
+            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin: 0;">
+                <input type="checkbox" name="is_default" style="width: 20px; height: 20px;">
+                <strong>¿Es esta la Membresía Principal?</strong>
+            </label>
+            <p class="small muted" style="margin: 5px 0 0 30px;">Los clientes volverán automáticamente a esta membresía cuando caduque su plan actual. Solo una puede ser la principal.</p>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block" style="margin-top: 20px;">💾 Guardar Tipo de Membresía</button>
+    </form>
+</div>
+
+<!-- Lista de membresías -->
+<h3>📋 Tipos de Membresía Activos</h3>
+{% if memberships %}
+<div class="table-responsive" style="overflow-x: auto;">
+<table class="table" style="min-width: 600px;">
+    <thead>
+        <tr>
+            <th>Nombre</th>
+            <th>Precio</th>
+            <th>Principal</th>
+            <th>Acciones</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for m in memberships %}
+        <tr>
+            <td><strong>{{ m.name }}</strong></td>
+            <td>${{ "%.2f"|format(m.price) }}</td>
+            <td>{% if m.is_default %}<span class="badge badge-green">⭐ Sí</span>{% else %}<span class="muted">No</span>{% endif %}</td>
+            <td>
+                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                    <button onclick="previewMembership({{ m.id }}, '{{ m.name }}', {{ m.price }}, {{ m.cashback_percent }}, {{ m.discount_percent }}, {{ m.drinks_count }}, {{ m.grain_bags }}, '{{ m.badge_icon if m.badge_icon else '' }}', '{{ m.badge_color }}', '{{ m.background_image if m.background_image else '' }}')" class="btn btn-sm">👁️ Ver</button>
+                    <button onclick="openEditModal({{ m.id }})" 
+                            data-price="{{ m.price }}" 
+                            data-cashback="{{ m.cashback_percent }}" 
+                            data-discount="{{ m.discount_percent }}" 
+                            data-drinks="{{ m.drinks_count }}" 
+                            data-grain="{{ m.grain_bags }}" 
+                            data-color="{{ m.badge_color }}" 
+                            data-icon="{{ m.badge_icon.split('/')[-1] if m.badge_icon else '' }}" 
+                            data-bg="{{ m.background_image.split('/')[-1] if m.background_image else '' }}" 
+                            data-default="{{ m.is_default }}"
+                            class="btn btn-sm btn-primary">✏️ Editar</button>
+                    <form method="POST" action="{{ url_for('delete_membership', membership_id=m.id) }}"
+                          style="display: inline;" onsubmit="return confirm('¿Eliminar este tipo de membresía?');">
+                        <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+<!-- Modal Vista Previa Membresía (Formato Tarjeta) -->
+<div id="membershipModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.8); z-index:2000; align-items:center; justify-content:center;">
+    <div style="background:var(--card); border-radius:16px; padding:0; max-width:350px; width:90%; text-align:center; position:relative; border: 2px solid var(--border); overflow:hidden;">
+        <button onclick="document.getElementById('membershipModal').style.display='none'" style="position:absolute; top:10px; right:15px; background:none; border:none; color:white; font-size:1.5rem; cursor:pointer; z-index:10;">✕</button>
+        
+        <!-- Cabecera de la Tarjeta -->
+        <div id="modalCardHeader" style="padding: 30px 20px 20px; background: linear-gradient(to bottom, rgba(0,0,0,0.4), transparent);">
+            <div id="modalBadgeContainer" style="width:80px; height:80px; margin:0 auto 15px; display:flex; align-items:center; justify-content:center;">
+                <img id="modalBadgeImg" src="" alt="Icono" style="width:100%; height:100%; object-fit:cover; border-radius:50%; border: 4px solid white; display:none;">
+                <div id="modalBadgeFallback" style="width:70px; height:70px; border-radius:50%; background-color:#FFD700; display:flex; align-items:center; justify-content:center; font-size:2rem; border: 4px solid white;">💎</div>
+            </div>
+            <h2 id="modalName" style="margin:0; font-size:1.5rem; color:white; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">Nombre</h2>
+            <p id="modalPrice" style="font-size: 1.2rem; font-weight: bold; color:white; margin-top:5px;">$0.00</p>
+        </div>
+        
+        <!-- Cuerpo de Beneficios -->
+        <div style="padding: 20px; text-align: left; background: var(--card);">
+            <h4 style="margin: 0 0 15px; color: var(--muted); border-bottom: 1px solid var(--border); padding-bottom: 10px;">Beneficios Incluidos</h4>
+            <ul style="list-style: none; padding: 0; margin: 0; color: var(--text);">
+                <li style="margin-bottom: 8px;">✨ Cashback: <strong id="modalCashback" style="color: #FFD700;">0%</strong></li>
+                <li style="margin-bottom: 8px;">🏷️ Descuento Canjes: <strong id="modalDiscount" style="color: #FFD700;">0%</strong></li>
+                <li style="margin-bottom: 8px;">☕ Bebidas/Mes: <strong id="modalDrinks">0</strong></li>
+                <li>🌾 Bolsas de Grano: <strong id="modalGrain">0</strong></li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script>
+function previewMembership(id, name, price, cashback, discount, drinks, grain, badgeIcon, badgeColor, bgImage) {
+    document.getElementById('modalName').textContent = name;
+    document.getElementById('modalPrice').textContent = '$' + parseFloat(price).toFixed(2);
+    document.getElementById('modalCashback').textContent = cashback + '%';
+    document.getElementById('modalDiscount').textContent = discount + '%';
+    document.getElementById('modalDrinks').textContent = drinks;
+    document.getElementById('modalGrain').textContent = grain;
+    
+    // Aplicar color a los textos destacados
+    const highlights = document.querySelectorAll('#modalCashback, #modalDiscount');
+    highlights.forEach(el => el.style.color = badgeColor || '#FFD700');
+    
+    // Manejar imagen de fondo del modal
+    const header = document.getElementById('modalCardHeader');
+    if (bgImage && bgImage !== 'None' && bgImage !== '') {
+        header.style.backgroundImage = `url('${bgImage}')`;
+        header.style.backgroundSize = 'cover';
+        header.style.backgroundPosition = 'center';
+    } else {
+        header.style.backgroundImage = 'linear-gradient(to bottom, rgba(0,0,0,0.4), transparent)';
+    }
+    
+    const img = document.getElementById('modalBadgeImg');
+    const fallback = document.getElementById('modalBadgeFallback');
+    
+    if (badgeIcon && badgeIcon !== 'None' && badgeIcon !== '') {
+        img.src = badgeIcon;
+        img.style.display = 'block';
+        img.style.borderColor = badgeColor || '#FFD700';
+        fallback.style.display = 'none';
+    } else {
+        img.style.display = 'none';
+        fallback.style.display = 'flex';
+        fallback.style.backgroundColor = badgeColor || '#FFD700';
+    }
+    
+    document.getElementById('membershipModal').style.display = 'flex';
+}
+
+// Función para seleccionar icono en el grid
+function selectIcon(element, value) {
+    // Remover selección de todos los iconos
+    document.querySelectorAll('.icon-option').forEach(el => {
+        el.style.borderColor = 'transparent';
+        el.style.background = 'transparent';
+    });
+    // Resaltar el seleccionado
+    if (element) {
+        element.style.borderColor = '#FFD700';
+        element.style.background = 'rgba(255,215,0,0.1)';
+    }
+    // Actualizar el input oculto
+    document.getElementById('selected_icon').value = value;
+}
+
+// Función para seleccionar fondo en el grid
+function selectBg(element, value) {
+    // Remover selección de todos los fondos
+    document.querySelectorAll('.bg-option').forEach(el => {
+        el.style.borderColor = 'transparent';
+        el.style.background = 'transparent';
+    });
+    // Resaltar el seleccionado
+    if (element) {
+        element.style.borderColor = '#FFD700';
+        element.style.background = 'rgba(255,215,0,0.1)';
+    }
+    // Actualizar el input oculto
+    document.getElementById('selected_bg').value = value;
+}
+
+function openEditModal(id) {
+    // Encontrar la fila de la tabla correspondiente al ID
+    // Buscamos el botón que llamó a esta función y subimos hasta la fila (tr)
+    const btn = event.target;
+    const row = btn.closest('tr');
+    
+    // Extraer datos de las celdas (ajusta los índices según tu tabla)
+    // Celda 0: Nombre, Celda 1: Precio
+    const name = row.cells[0].innerText.trim();
+    
+    // Para los demás datos, usaremos atributos data- en el botón para mayor seguridad
+    const price = btn.getAttribute('data-price');
+    const cashback = btn.getAttribute('data-cashback');
+    const discount = btn.getAttribute('data-discount');
+    const drinks = btn.getAttribute('data-drinks');
+    const grain = btn.getAttribute('data-grain');
+    const color = btn.getAttribute('data-color');
+    const iconFile = btn.getAttribute('data-icon');
+    const bgFile = btn.getAttribute('data-bg');
+    const isDef = btn.getAttribute('data-default');
+
+    document.getElementById('editForm').action = '/memberships/' + id + '/edit';
+    document.getElementById('editName').value = name;
+    document.getElementById('editDesc').value = ''; // La descripción no está en la tabla, se deja vacía o se podría añadir como data-desc
+    
+    document.getElementById('editPrice').value = price;
+    document.getElementById('editCashback').value = cashback;
+    document.getElementById('editDiscount').value = discount;
+    document.getElementById('editDrinks').value = drinks;
+    document.getElementById('editGrain').value = grain;
+    
+    const colorInput = document.getElementById('editColor');
+    if (colorInput) colorInput.value = color || '#FFD700';
+    
+    // Restaurar selección de icono y fondo usando el nuevo sistema de modales
+    restoreEditSelections(iconFile, bgFile);
+    
+    // Marcar checkbox si es la membresía principal
+    const defaultCheckbox = document.getElementById('editIsDefault');
+    if (defaultCheckbox) {
+        defaultCheckbox.checked = (isDef === 'True');
+    }
+    
+    document.getElementById('editModal').style.display = 'flex';
+}
+</script>
+
+<!-- Modal Editar Membresía -->
+<div id="editModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.8); z-index:2000; align-items:center; justify-content:center; overflow-y: auto;">
+    <div style="background:var(--card); border-radius:16px; padding:2rem; max-width:600px; width:90%; position:relative; border: 2px solid var(--border); margin: 20px auto;">
+        <button onclick="document.getElementById('editModal').style.display='none'" style="position:absolute; top:10px; right:15px; background:none; border:none; color:white; font-size:1.5rem; cursor:pointer;">✕</button>
+        <h3>✏️ Editar Membresía</h3>
+        
+        <form id="editForm" method="POST" enctype="multipart/form-data" class="form">
+            <label>Nombre
+                <input type="text" id="editName" name="name" required>
+            </label>
+            <label>Descripción
+                <textarea id="editDesc" name="description" rows="2"></textarea>
+            </label>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                <label>Precio ($)
+                    <input type="number" id="editPrice" name="price" step="0.01" min="0" required>
+                </label>
+                <label>Cashback (%)
+                    <input type="number" id="editCashback" name="cashback_percent" step="0.1" min="0" max="100" required>
+                </label>
+                <label>Descuento (%)
+                    <input type="number" id="editDiscount" name="discount_percent" step="0.1" min="0" max="100" required>
+                </label>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <label>Bebidas
+                    <input type="number" id="editDrinks" name="drinks_count" min="0">
+                </label>
+                <label>Bolsas Grano
+                    <input type="number" id="editGrain" name="grain_bags" min="0">
+                </label>
+            </div>
+
+            <label>Color del Distintivo
+                <input type="color" id="editColor" name="badge_color" style="width: 100%; height: 40px; border: none; cursor: pointer;">
+            </label>
+
+            <label>Icono del Distintivo
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button type="button" onclick="openIconSelector('edit')" class="btn btn-sm" style="flex: 1;">🖼️ Seleccionar Logo</button>
+                    <div id="edit_icon_preview" style="width: 50px; height: 50px; border-radius: 8px; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; background: var(--bg); overflow: hidden;">
+                        <span style="color: var(--muted); font-size: 12px;">Ninguno</span>
+                    </div>
+                </div>
+                <input type="hidden" id="edit_selected_icon" name="badge_icon_file" value="">
+                <small class="muted">Haz clic en "Seleccionar Logo" para elegir un icono.</small>
+            </label>
+            
+            <label>Imagen de Fondo
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button type="button" onclick="openBgSelector('edit')" class="btn btn-sm" style="flex: 1;">🖼️ Seleccionar Fondo</button>
+                    <div id="edit_bg_preview" style="width: 60px; height: 40px; border-radius: 6px; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; background: var(--bg); overflow: hidden;">
+                        <span style="color: var(--muted); font-size: 10px;">Ninguno</span>
+                    </div>
+                </div>
+                <input type="hidden" id="edit_selected_bg" name="background_image_file" value="">
+                <small class="muted">Haz clic en "Seleccionar Fondo" para elegir una imagen de fondo.</small>
+            </label>
+
+            <div style="margin-top: 15px; padding: 10px; background: rgba(255, 215, 0, 0.1); border: 1px solid #FFD700; border-radius: 8px;">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin: 0;">
+                    <input type="checkbox" id="editIsDefault" name="is_default" style="width: 20px; height: 20px;">
+                    <strong>¿Es esta la Membresía Principal?</strong>
+                </label>
+                <p class="small muted" style="margin: 5px 0 0 30px;">Los clientes volverán automáticamente a esta membresía cuando caduque su plan actual.</p>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block" style="margin-top: 20px;">Guardar Cambios</button>
+        </form>
+    </div>
+</div>
+{% else %}
+<p class="muted">No hay tipos de membresía definidos aún.</p>
+{% endif %}
+
+<!-- Modal Selección de Iconos -->
+<div id="iconSelectorModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.8); z-index:3000; align-items:center; justify-content:center; overflow-y: auto;">
+    <div style="background:var(--card); border-radius:16px; padding:2rem; max-width:500px; width:90%; position:relative; border: 2px solid var(--border); margin: 20px auto; max-height: 90vh; overflow-y: auto;">
+        <button onclick="closeIconSelector()" style="position:absolute; top:10px; right:15px; background:none; border:none; color:white; font-size:1.5rem; cursor:pointer;">✕</button>
+        <h3>🖼️ Seleccionar Logo</h3>
+        <p class="muted">Haz clic en el logo que deseas usar para la membresía.</p>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; margin-top: 20px;">
+            <div onclick="selectIconFromModal('')" style="display: flex; flex-direction: column; align-items: center; padding: 10px; border-radius: 8px; cursor: pointer; border: 2px solid transparent; background: var(--bg);">
+                <div style="width: 60px; height: 60px; border-radius: 50%; background: #444; display: flex; align-items: center; justify-content: center; font-size: 24px; color: #888;">🚫</div>
+                <span style="font-size: 12px; color: var(--muted); margin-top: 5px;">Ninguno</span>
+            </div>
+            {% for icon in available_icons %}
+            <div onclick="selectIconFromModal('{{ icon }}')" style="display: flex; flex-direction: column; align-items: center; padding: 10px; border-radius: 8px; cursor: pointer; border: 2px solid transparent; background: var(--bg);">
+                <img src="{{ url_for('static', filename='ImgenQr/Iconos/' + icon) }}" alt="{{ icon }}" style="width: 60px; height: 60px; object-fit: contain; border-radius: 8px; background: #222;">
+                <span style="font-size: 11px; color: var(--muted); margin-top: 5px; text-align: center;">{{ icon }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal Selección de Fondos -->
+<div id="bgSelectorModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.8); z-index:3000; align-items:center; justify-content:center; overflow-y: auto;">
+    <div style="background:var(--card); border-radius:16px; padding:2rem; max-width:500px; width:90%; position:relative; border: 2px solid var(--border); margin: 20px auto; max-height: 90vh; overflow-y: auto;">
+        <button onclick="closeBgSelector()" style="position:absolute; top:10px; right:15px; background:none; border:none; color:white; font-size:1.5rem; cursor:pointer;">✕</button>
+        <h3>🖼️ Seleccionar Fondo</h3>
+        <p class="muted">Haz clic en el fondo que deseas usar para la membresía.</p>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 15px; margin-top: 20px;">
+            <div onclick="selectBgFromModal('')" style="display: flex; flex-direction: column; align-items: center; padding: 10px; border-radius: 8px; cursor: pointer; border: 2px solid transparent; background: var(--bg);">
+                <div style="width: 100px; height: 60px; border-radius: 6px; background: #444; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #888;">Ninguno</div>
+                <span style="font-size: 11px; color: var(--muted); margin-top: 5px;">Sin fondo</span>
+            </div>
+            {% for bg in available_bgs %}
+            <div onclick="selectBgFromModal('{{ bg }}')" style="display: flex; flex-direction: column; align-items: center; padding: 10px; border-radius: 8px; cursor: pointer; border: 2px solid transparent; background: var(--bg);">
+                <img src="{{ url_for('static', filename='ImgenQr/Fondos/' + bg) }}" alt="{{ bg }}" style="width: 100px; height: 60px; object-fit: cover; border-radius: 6px; background: #222;">
+                <span style="font-size: 11px; color: var(--muted); margin-top: 5px; text-align: center;">{{ bg }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+// Variables para saber qué formulario está usando el selector
+let currentIconTarget = 'create'; // 'create' o 'edit'
+let currentBgTarget = 'create';
+
+function openIconSelector(target) {
+    currentIconTarget = target;
+    document.getElementById('iconSelectorModal').style.display = 'flex';
+}
+
+function closeIconSelector() {
+    document.getElementById('iconSelectorModal').style.display = 'none';
+}
+
+function selectIconFromModal(value) {
+    // Actualizar el campo oculto y la previsualización según el objetivo
+    if (currentIconTarget === 'create') {
+        document.getElementById('create_selected_icon').value = value;
+        updatePreview('create_icon_preview', value, 'icon');
+    } else if (currentIconTarget === 'edit') {
+        document.getElementById('edit_selected_icon').value = value;
+        updatePreview('edit_icon_preview', value, 'icon');
+    }
+    closeIconSelector();
+}
+
+function openBgSelector(target) {
+    currentBgTarget = target;
+    document.getElementById('bgSelectorModal').style.display = 'flex';
+}
+
+function closeBgSelector() {
+    document.getElementById('bgSelectorModal').style.display = 'none';
+}
+
+function selectBgFromModal(value) {
+    if (currentBgTarget === 'create') {
+        document.getElementById('create_selected_bg').value = value;
+        updatePreview('create_bg_preview', value, 'bg');
+    } else if (currentBgTarget === 'edit') {
+        document.getElementById('edit_selected_bg').value = value;
+        updatePreview('edit_bg_preview', value, 'bg');
+    }
+    closeBgSelector();
+}
+
+function updatePreview(previewId, value, type) {
+    const preview = document.getElementById(previewId);
+    if (!preview) return;
+    
+    if (value && value !== '') {
+        const img = document.createElement('img');
+        img.src = "{{ url_for('static', filename='') }}" + 'ImgenQr/' + (type === 'icon' ? 'Iconos/' : 'Fondos/') + value;
+        img.alt = value;
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = type === 'icon' ? 'contain' : 'cover';
+        preview.innerHTML = '';
+        preview.appendChild(img);
+    } else {
+        preview.innerHTML = '<span style="color: var(--muted); font-size: ' + (type === 'icon' ? '12px' : '10px') + ';">Ninguno</span>';
+    }
+}
+
+// Función para restaurar la selección en el modal de edición
+function restoreEditSelections(iconFile, bgFile) {
+    if (iconFile) {
+        document.getElementById('edit_selected_icon').value = iconFile;
+        updatePreview('edit_icon_preview', iconFile, 'icon');
+    } else {
+        document.getElementById('edit_selected_icon').value = '';
+        updatePreview('edit_icon_preview', '', 'icon');
+    }
+    if (bgFile) {
+        document.getElementById('edit_selected_bg').value = bgFile;
+        updatePreview('edit_bg_preview', bgFile, 'bg');
+    } else {
+        document.getElementById('edit_selected_bg').value = '';
+        updatePreview('edit_bg_preview', '', 'bg');
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Usuarios · Júbilo{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>👥 Gestión de Usuarios</h1>
+    <p class="muted">
+        Los <strong>superusuarios</strong> pueden eliminar tarjetas y gestionar usuarios.
+        Los <strong>usuarios de marketing</strong> tienen los permisos de un usuario estándar,
+        además de acceso a la pestaña de <strong>Notificaciones</strong>.
+        Los <strong>usuarios estándar</strong> pueden crear tarjetas, recargar y canjear, pero NO eliminar.
+    </p>
+</div>
+
+
+
+<!-- Crear nuevo usuario -->
+<div class="auth-card" style="max-width: 600px; margin: 20px auto;">
+    <h2>➕ Crear nuevo usuario</h2>
+    <form method="POST" action="{{ url_for('users') }}" class="form">
+        <label>Usuario
+            <input type="text" name="username" required
+                   pattern="[A-Za-z0-9_.\-]{3,40}"
+                   title="3 a 40 caracteres: letras, números, punto, guión o guión bajo"
+                   placeholder="Ej. Jubilado1">
+            <small class="muted">3 a 40 caracteres: letras, números, punto, guión o guión bajo</small>
+        </label>
+
+        <label>Contraseña
+            <input type="password" name="password" required minlength="6"
+                   placeholder="••••••">
+            <small class="muted">Mínimo 6 caracteres</small>
+        </label>
+
+        <label style="flex-direction: row; align-items: center; gap: 10px; font-weight: 400; cursor: pointer;">
+            <input type="checkbox" name="is_superuser" style="width: 18px; height: 18px; accent-color: var(--primary);">
+            <span>⭐ Conceder permisos de superusuario (eliminar tarjetas y usuarios)</span>
+        </label>
+
+        <label style="flex-direction: row; align-items: center; gap: 10px; font-weight: 400; cursor: pointer;">
+            <input type="checkbox" name="is_marketing" style="width: 18px; height: 18px; accent-color: var(--primary);">
+            <span>📣 Rol de marketing (permisos de estándar + acceso a Notificaciones)</span>
+        </label>
+
+        <button type="submit" class="btn btn-primary btn-block">👤 Crear usuario</button>
+    </form>
+</div>
+
+<!-- Lista de usuarios -->
+<h2>👥 Usuarios existentes</h2>
+<div class="table-responsive">
+    <table class="table">
+    <thead>
+        <tr>
+            <th>Usuario</th>
+            <th>Rol</th>
+            <th>Creado</th>
+            <th>Último acceso</th>
+            <th>Acciones</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for admin in admins %}
+        <tr>
+            <td><strong>{{ admin.username }}</strong>{% if admin.id == session.get('admin_id') %} <span class="badge badge-green">tú</span>{% endif %}</td>
+            <td>
+                {% if admin.is_superuser %}
+                    <span class="badge badge-green">⭐ Superusuario</span>
+                {% elif admin.is_marketing %}
+                    <span class="badge">📣 Marketing</span>
+                {% else %}
+                    <span class="badge">Estándar</span>
+                {% endif %}
+            </td>
+            <td style="white-space: nowrap;">{{ admin.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+            <td style="white-space: nowrap;">{{ admin.last_login.strftime('%d/%m/%Y %H:%M') if admin.last_login else '—' }}</td>
+            <td>
+                <div class="action-buttons">
+                    {% if admin.id != session.get('admin_id') %}
+                    <form method="POST" action="{{ url_for('change_user_password', admin_id=admin.id) }}"
+                          class="password-form"
+                          onsubmit="return confirm('¿Cambiar la contraseña de {{ admin.username }}?');">
+                        <input type="password" name="password" minlength="6" required
+                               placeholder="Nueva contraseña"
+                               class="password-input">
+                        <button type="submit" class="btn btn-sm btn-primary">🔑 Cambiar</button>
+                    </form>
+                    <form method="POST" action="{{ url_for('delete_user', admin_id=admin.id) }}"
+                          onsubmit="return confirm('¿Eliminar al usuario {{ admin.username }}?')">
+                        <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
+                    </form>
+                    {% else %}
+                    <span class="muted small">—</span>
+                    {% endif %}
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endblock %}
