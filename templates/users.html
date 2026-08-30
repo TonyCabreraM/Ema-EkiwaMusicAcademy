@@ -77,21 +77,25 @@
             <td style="white-space: nowrap;">{{ admin.last_login.strftime('%d/%m/%Y %H:%M') if admin.last_login else '—' }}</td>
             <td>
                 <div class="action-buttons">
-                    {% if admin.id != session.get('admin_id') %}
+                    {% if admin.id == session.get('admin_id') %}
+                    <!-- Solo el usuario actual puede cambiar SU PROPIA contraseña -->
                     <form method="POST" action="{{ url_for('change_user_password', admin_id=admin.id) }}"
                           class="password-form"
-                          onsubmit="return confirm('¿Cambiar la contraseña de {{ admin.username }}?');">
+                          onsubmit="return confirm('¿Cambiar tu contraseña?');">
                         <input type="password" name="password" minlength="6" required
                                placeholder="Nueva contraseña"
                                class="password-input">
-                        <button type="submit" class="btn btn-sm btn-primary">🔑 Cambiar</button>
+                        <button type="submit" class="btn btn-sm btn-primary">🔑 Cambiar mi contraseña</button>
                     </form>
+                    {% else %}
+                    <!-- No se puede cambiar la contraseña de otros usuarios -->
+                    <span class="muted small">Solo puedes cambiar tu propia contraseña</span>
+                    {% endif %}
+                    {% if session.get('is_superuser') and admin.id != session.get('admin_id') %}
                     <form method="POST" action="{{ url_for('delete_user', admin_id=admin.id) }}"
                           onsubmit="return confirm('¿Eliminar al usuario {{ admin.username }}?')">
                         <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
                     </form>
-                    {% else %}
-                    <span class="muted small">—</span>
                     {% endif %}
                 </div>
             </td>

@@ -888,9 +888,11 @@ def create_app():
     @app.route("/users/<int:admin_id>/password", methods=["POST"])
     def change_user_password(admin_id):
         if not session.get("admin_id"): return redirect(url_for("login"))
-        if not session.get("is_superuser"):
-            flash("Solo el superusuario puede gestionar usuarios", "error")
-            return redirect(url_for("dashboard"))
+        # Solo el usuario iniciado puede cambiar SU PROPIA contraseña,
+        # sin importar si es superusuario o no.
+        if admin_id != session.get("admin_id"):
+            flash("Solo puedes cambiar tu propia contrasena", "error")
+            return redirect(url_for("users"))
         password = request.form.get("password", "")
         if len(password) < 6:
             flash("La contrasena debe tener al menos 6 caracteres", "error")
@@ -898,7 +900,7 @@ def create_app():
         target = Admin.query.filter_by(id=admin_id).first_or_404()
         target.set_password(password)
         db.session.commit()
-        flash(f"Contrasena de '{target.username}' actualizada", "success")
+        flash("Contrasena actualizada correctamente", "success")
         return redirect(url_for("users"))
 
     # ===== NOTIFICACIONES (superusuarios y marketing) =====
