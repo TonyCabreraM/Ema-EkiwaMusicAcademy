@@ -824,6 +824,25 @@ def create_app():
         """Solo superusuarios o usuarios de marketing pueden gestionar notificaciones"""
         return bool(session.get("is_superuser") or session.get("is_marketing"))
 
+    def save_notification_image(file_storage):
+        """Guarda una imagen subida desde el dispositivo y devuelve su URL pública."""
+        import uuid
+        from werkzeug.utils import secure_filename
+
+        ALLOWED_EXT = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+        filename = secure_filename(file_storage.filename or '')
+        ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else 'png'
+        if ext not in ALLOWED_EXT:
+            ext = 'png'
+        # Nombre único para evitar colisiones
+        unique_name = f"notif_{uuid.uuid4().hex[:12]}.{ext}"
+        upload_dir = os.path.join(app.static_folder, 'notif_images')
+        os.makedirs(upload_dir, exist_ok=True)
+        file_storage.save(os.path.join(upload_dir, unique_name))
+        # URL pública absoluta
+        base = get_public_base_url()
+        return f"{base}/static/notif_images/{unique_name}"
+
     @app.route("/notifications", methods=["GET", "POST"])
     def notifications():
         if not session.get("admin_id"): return redirect(url_for("login"))
@@ -836,6 +855,12 @@ def create_app():
             title = sanitize_input(request.form.get("title", ""))
             message = sanitize_input(request.form.get("message", ""))
             image_url = sanitize_input(request.form.get("image_url", "")).strip()
+            
+            # Procesar imagen subida desde el dispositivo
+            uploaded_image = request.files.get("image_file")
+            if uploaded_image and uploaded_image.filename:
+                image_url = save_notification_image(uploaded_image)
+            
             if not title or not message:
                 flash("Titulo y mensaje son obligatorios", "error")
             else:

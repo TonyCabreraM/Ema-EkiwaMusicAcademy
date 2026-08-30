@@ -388,6 +388,11 @@ async function updatePushButtonUI() {
             btn.className = 'btn btn-danger';
             btn.disabled = false;
             status.textContent = '✅ Estás suscrito. Recibirás avisos de novedades.';
+        } else if (state === 'denied') {
+            btn.textContent = '🔔 Activar notificaciones';
+            btn.className = 'btn btn-primary';
+            btn.disabled = false;
+            status.textContent = '⚠️ Permiso bloqueado. Actívalo en el navegador.';
         } else {
             btn.textContent = '🔔 Activar notificaciones de novedades';
             btn.className = 'btn btn-primary';
@@ -400,9 +405,15 @@ async function updatePushButtonUI() {
 }
 
 async function togglePushNotifications() {
-    if (!window.jubiloPush) {
-        alert('El sistema de notificaciones aún se está cargando. Intenta de nuevo en unos segundos.');
-        return;
+    // Esperar a que jubiloPush esté listo (hasta 5 segundos)
+    let attempts = 0;
+    while (!window.jubiloPush || !window.jubiloPush.requestPushPermissionAndSubscribe) {
+        if (attempts > 10) {
+            alert('⏳ OneSignal aún no está listo. Recarga la página e intenta de nuevo.');
+            return;
+        }
+        await new Promise(r => setTimeout(r, 500));
+        attempts++;
     }
     
     const btn = document.getElementById('enablePushBtn');
@@ -413,10 +424,14 @@ async function togglePushNotifications() {
         if (state === 'active') {
             await window.jubiloPush.unsubscribePush();
             alert('🔕 Notificaciones desactivadas.');
+        } else if (state === 'denied') {
+            alert('⚠️ El navegador tiene bloqueadas las notificaciones para este sitio.\n\nActívalas manualmente:\n1. Haz clic en el ícono de candado 🔒 en la barra de direcciones.\n2. Busca "Notificaciones" y cámbialo a "Permitir".\n3. Recarga la página e intenta de nuevo.');
         } else {
             const ok = await window.jubiloPush.requestPushPermissionAndSubscribe();
             if (ok) {
                 alert('✅ ¡Notificaciones activadas! Ahora recibirás avisos importantes.');
+            } else {
+                alert('❌ No se pudo activar. Revisa la consola para más detalles.');
             }
         }
     } catch (e) {

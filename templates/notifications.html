@@ -27,7 +27,7 @@
 
 <div class="auth-card" style="max-width: 760px; margin: 20px auto; text-align: left;">
     <h3 style="text-align: center; margin-bottom: 1rem;">➕ Nueva notificación</h3>
-    <form method="POST" action="{{ url_for('notifications') }}" class="form">
+    <form method="POST" action="{{ url_for('notifications') }}" class="form" enctype="multipart/form-data">
         <label>Título
             <input type="text" name="title" required maxlength="140"
                    placeholder="Ej. Nueva promoción disponible">
@@ -41,10 +41,9 @@
         </label>
 
         <label>Imagen (opcional)
-            <input type="url" name="image_url" id="image_url"
-                   placeholder="https://ejemplo.com/imagen.jpg"
-                   oninput="previewNotifImage(this.value)">
-            <small class="muted">URL pública de la imagen que se mostrará en la notificación (como en OneSignal)</small>
+            <input type="file" name="image_file" id="image_file" accept="image/*"
+                   onchange="previewNotifImageFile(this)">
+            <small class="muted">Selecciona una imagen desde tu dispositivo. Se mostrará en la notificación (como en OneSignal).</small>
         </label>
         <div id="imagePreview" style="display:none; text-align:center; margin-top: 8px;">
             <img id="imagePreviewImg" src="" alt="Vista previa"
@@ -149,13 +148,18 @@ async function updatePushButtonUI() {
 
 window.updatePushButtonUI = updatePushButtonUI;
 
-// Vista previa de imagen en el formulario
-function previewNotifImage(url) {
+// Vista previa de imagen seleccionada desde el dispositivo
+function previewNotifImageFile(input) {
     const preview = document.getElementById('imagePreview');
     const img = document.getElementById('imagePreviewImg');
-    if (url && url.trim()) {
-        img.src = url.trim();
-        preview.style.display = 'block';
+    const file = input.files && input.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            img.src = e.target.result;
+            preview.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
     } else {
         preview.style.display = 'none';
         img.src = '';
