@@ -135,9 +135,21 @@
                     if (!this._ready || !this._onesignal) return 'loading';
                     try {
                         const subscribed = await this._onesignal.User.PushSubscription.isSubscribed();
-                        return subscribed ? 'active' : 'inactive';
+                        // OneSignal también puede tener notificaciones bloqueadas en el navegador
+                        if (!subscribed) {
+                            // Verificar si el permiso fue denegado
+                            if (Notification.permission === 'denied') {
+                                return 'denied';
+                            }
+                            return 'inactive';
+                        }
+                        return 'active';
                     } catch (e) {
-                        return 'error';
+                        console.warn('Error obteniendo estado de suscripción:', e);
+                        if (Notification.permission === 'denied') {
+                            return 'denied';
+                        }
+                        return 'inactive';
                     }
                 }
             };

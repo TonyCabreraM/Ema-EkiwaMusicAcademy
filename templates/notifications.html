@@ -95,10 +95,16 @@ async function updatePushButtonUI() {
     const status = document.getElementById('pushStatus');
     if (!btn || !status) return;
 
-    if (!window.jubiloPush) {
-        btn.style.display = 'none';
-        status.textContent = 'OneSignal no está disponible en esta página.';
-        return;
+    // Esperar a que jubiloPush esté listo (hasta 5 segundos)
+    let attempts = 0;
+    while (!window.jubiloPush || window.jubiloPush.getSubscriptionState === undefined) {
+        if (attempts > 10) {
+            btn.style.display = 'none';
+            status.textContent = '⏳ OneSignal no respondió. Recarga la página.';
+            return;
+        }
+        await new Promise(r => setTimeout(r, 500));
+        attempts++;
     }
 
     const state = await window.jubiloPush.getSubscriptionState();
@@ -125,18 +131,31 @@ async function updatePushButtonUI() {
 window.updatePushButtonUI = updatePushButtonUI;
 
 async function togglePushNotifications() {
-    if (!window.jubiloPush) return;
+    if (!window.jubiloPush) {
+        alert('⏳ OneSignal aún no está listo. Intenta en unos segundos.');
+        return;
+    }
     const state = await window.jubiloPush.getSubscriptionState();
+    
     if (state === 'active') {
         await window.jubiloPush.unsubscribePush();
         await updatePushButtonUI();
-        alert('Notificaciones push desactivadas.');
+        alert('🔕 Notificaciones push desactivadas.');
+        return;
+    }
+    
+    if (state === 'denied') {
+        alert('⚠️ El navegador tiene bloqueadas las notificaciones para este sitio.\n\nActívalas manualmente:\n1. Haz clic en el ícono de candado 🔒 en la barra de direcciones.\n2. Busca "Notificaciones" y cámbialo a "Permitir".\n3. Recarga la página e intenta de nuevo.');
+        return;
+    }
+    
+    // Estado 'inactive' o 'loading'
+    const ok = await window.jubiloPush.requestPushPermissionAndSubscribe();
+    await updatePushButtonUI();
+    if (ok) {
+        alert('✅ Notificaciones push activadas correctamente.\nRecibirás avisos cuando se creen nuevas notificaciones.');
     } else {
-        const ok = await window.jubiloPush.requestPushPermissionAndSubscribe();
-        await updatePushButtonUI();
-        if (ok) {
-            alert('Notificaciones push activadas correctamente.');
-        }
+        alert('❌ No se pudo activar. Revisa la consola para más detalles.');
     }
 }
 

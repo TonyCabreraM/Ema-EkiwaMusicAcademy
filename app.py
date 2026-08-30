@@ -103,8 +103,8 @@ def create_app():
         payload = {
             "app_id": ONESIGNAL_APP_ID,
             "included_segments": ["All"],
-            "headings": {"es": title},
-            "contents": {"es": body},
+            "headings": {"en": title, "es": title},
+            "contents": {"en": body, "es": body},
             "url": target_url
         }
         
@@ -114,11 +114,21 @@ def create_app():
                 headers=headers,
                 json=payload
             )
-            response.raise_for_status()
+            
+            # Leer respuesta incluso si es error (400 devuelve JSON con detalles)
             data = response.json()
+            
+            if response.status_code >= 400:
+                error_msg = data.get("errors", [str(data)])
+                logger.error(f'OneSignal error {response.status_code}: {error_msg}')
+                return {"ok": False, "sent": 0, "error": f"{response.status_code}: {', '.join(error_msg) if isinstance(error_msg, list) else error_msg}"}
+            
             sent = int(data.get("recipients") or 0)
-            logger.info(f'Notificacion OneSignal enviada: {title}')
+            logger.info(f'Notificacion OneSignal enviada: {title} -> {sent} recipients')
             return {"ok": True, "sent": sent, "id": data.get("id")}
+        except requests.exceptions.RequestException as e:
+            logger.error(f'Error de red en OneSignal: {e}')
+            return {"ok": False, "sent": 0, "error": f"Error de red: {str(e)}"}
         except Exception as e:
             logger.error(f'Error enviando notificacion OneSignal: {e}')
             return {"ok": False, "sent": 0, "error": str(e)}
