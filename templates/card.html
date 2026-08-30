@@ -290,14 +290,6 @@
         {% else %}
             <h3>📋 Movimientos Recientes</h3>
             
-            <!-- Notificaciones push para el cliente (OneSignal) - botón secundario -->
-            <div style="margin-bottom: 20px; padding: 15px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; text-align: center;">
-                <button id="enablePushBtn" class="btn btn-sm" onclick="togglePushNotifications()" style="opacity: 0.85;">
-                    🔔 Activar notificaciones de novedades
-                </button>
-                <p id="pushStatus" class="muted small" style="margin-top: 10px;">Recibe avisos cuando tu saldo cambie o haya promociones.</p>
-            </div>
-            
             {% if recent_transactions %}
                 <div style="margin-top: 15px;">
                     {% for tx in recent_transactions %}
@@ -361,87 +353,6 @@
 </div>
 
 <script>
-// ===== Funciones de notificaciones push para cliente (OneSignal) =====
-async function updatePushButtonUI() {
-    const btn = document.getElementById('enablePushBtn');
-    const status = document.getElementById('pushStatus');
-    if (!btn || !status) return;
-
-    // Esperar a que OneSignal esté listo si aún no lo está
-    if (!window.jubiloPush) {
-        console.log('Esperando inicialización de OneSignal...');
-        setTimeout(updatePushButtonUI, 1000);
-        return;
-    }
-
-    try {
-        const state = await window.jubiloPush.getSubscriptionState();
-        btn.style.display = 'inline-block';
-
-        if (state === 'loading') {
-            btn.textContent = '⏳ Cargando sistema...';
-            btn.className = 'btn';
-            btn.disabled = true;
-            status.textContent = 'Inicializando notificaciones...';
-        } else if (state === 'active') {
-            btn.textContent = '🔕 Desactivar notificaciones';
-            btn.className = 'btn btn-danger';
-            btn.disabled = false;
-            status.textContent = '✅ Estás suscrito. Recibirás avisos de novedades.';
-        } else if (state === 'denied') {
-            btn.textContent = '🔔 Activar notificaciones';
-            btn.className = 'btn btn-primary';
-            btn.disabled = false;
-            status.textContent = '⚠️ Permiso bloqueado. Actívalo en el navegador.';
-        } else {
-            btn.textContent = '🔔 Activar notificaciones de novedades';
-            btn.className = 'btn btn-primary';
-            btn.disabled = false;
-            status.textContent = 'ℹ️ Activa para recibir avisos de saldo y promociones.';
-        }
-    } catch (e) {
-        console.error('Error actualizando UI de notificaciones:', e);
-    }
-}
-
-async function togglePushNotifications() {
-    // jubiloPush ya existe desde el inicio (definido en base.html).
-    // getSubscriptionState / requestPushPermissionAndSubscribe esperan internamente
-    // a que OneSignal esté listo.
-    if (!window.jubiloPush) {
-        alert('⏳ El sistema de notificaciones aún se está cargando. Recarga la página e intenta de nuevo.');
-        return;
-    }
-    
-    const btn = document.getElementById('enablePushBtn');
-    if (btn) btn.disabled = true;
-
-    try {
-        const state = await window.jubiloPush.getSubscriptionState();
-        if (state === 'active') {
-            await window.jubiloPush.unsubscribePush();
-            alert('🔕 Notificaciones desactivadas.');
-        } else if (state === 'denied') {
-            alert('⚠️ El navegador tiene bloqueadas las notificaciones para este sitio.\n\nActívalas manualmente:\n1. Haz clic en el ícono de candado 🔒 en la barra de direcciones.\n2. Busca "Notificaciones" y cámbialo a "Permitir".\n3. Recarga la página e intenta de nuevo.');
-        } else {
-            const ok = await window.jubiloPush.requestPushPermissionAndSubscribe();
-            if (ok) {
-                alert('✅ ¡Notificaciones activadas! Ahora recibirás avisos importantes.');
-            } else {
-                alert('❌ No se pudo activar. Revisa la consola para más detalles.');
-            }
-        }
-    } catch (e) {
-        alert('❌ Ocurrió un error: ' + e.message);
-    } finally {
-        if (btn) btn.disabled = false;
-        await updatePushButtonUI();
-    }
-}
-
-// Iniciar actualización de UI
-window.addEventListener('load', updatePushButtonUI);
-
 let pendingPhone = '';
 let pendingImageUrl = '';
 let pendingImageBlob = null;    // Imagen pre-descargada (garantiza descarga en móvil)

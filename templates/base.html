@@ -75,79 +75,6 @@
     <!-- OneSignal SDK (Alojado Localmente) -->
     <script src="{{ url_for('static', filename='sdk/OneSignalSDK.page.js') }}" defer></script>
     <script>
-        // Exponer jubiloPush INMEDIATAMENTE (antes de que OneSignal termine de inicializar)
-        // para que los botones puedan llamarlo sin errores de "undefined".
-        window.jubiloPush = {
-            _ready: false,
-            _onesignal: null,
-            _waiters: [],
-
-            // Se llama cuando OneSignal está listo
-            init: function(OneSignal) {
-                this._onesignal = OneSignal;
-                this._ready = true;
-                console.log('jubiloPush listo');
-                // Notificar a los que esperaban
-                this._waiters.forEach(function(resolve) { resolve(); });
-                this._waiters = [];
-                if (window.updatePushButtonUI) window.updatePushButtonUI();
-            },
-
-            // Espera a que OneSignal esté listo (hasta N ms)
-            _waitReady: function(timeoutMs) {
-                var self = this;
-                return new Promise(function(resolve) {
-                    if (self._ready) { resolve(); return; }
-                    var timer = setTimeout(function() { resolve(); }, timeoutMs || 5000);
-                    self._waiters.push(function() {
-                        clearTimeout(timer);
-                        resolve();
-                    });
-                });
-            },
-
-            // Método correcto según docs de OneSignal: optIn() maneja
-            // tanto el caso de ya-token (suscribe) como el de sin-token (muestra prompt).
-            requestPushPermissionAndSubscribe: async function() {
-                await this._waitReady(5000);
-                if (!this._ready || !this._onesignal) return false;
-                try {
-                    await this._onesignal.User.PushSubscription.optIn();
-                    return await this._onesignal.User.PushSubscription.isSubscribed();
-                } catch (e) {
-                    console.error('Error OneSignal optIn:', e);
-                    return false;
-                }
-            },
-
-            unsubscribePush: async function() {
-                await this._waitReady(5000);
-                if (!this._ready || !this._onesignal) return;
-                await this._onesignal.User.PushSubscription.optOut();
-            },
-
-            getSubscriptionState: async function() {
-                await this._waitReady(5000);
-                if (!this._ready || !this._onesignal) return 'loading';
-                try {
-                    const subscribed = await this._onesignal.User.PushSubscription.isSubscribed();
-                    if (!subscribed) {
-                        if (Notification.permission === 'denied') {
-                            return 'denied';
-                        }
-                        return 'inactive';
-                    }
-                    return 'active';
-                } catch (e) {
-                    console.warn('Error obteniendo estado de suscripción:', e);
-                    if (Notification.permission === 'denied') {
-                        return 'denied';
-                    }
-                    return 'inactive';
-                }
-            }
-        };
-
         window.OneSignalDeferred = window.OneSignalDeferred || [];
         OneSignalDeferred.push(async function(OneSignal) {
             try {
@@ -157,48 +84,36 @@
                     {% if onesignal_safari_web_id %}safari_web_id: "{{ onesignal_safari_web_id }}",{% endif %}
                     serviceWorkerParam: { scope: '/' },
                     serviceWorkerPath: '/OneSignalSDKWorker.js',
-                    notifyButton: {
-                        enable: true,
-                    },
+                    promptOptions: {
+                        slidedown: {
+                            prompts: [{
+                                type: "push",
+                                autoPrompt: false,
+                                text: {
+                                    actionMessage: "Recibe avisos de novedades, saldo y promociones de Júbilo.",
+                                    acceptButton: "Permitir",
+                                    cancelButton: "Ahora no"
+                                }
+                            }]
+                        }
+                    }
                 });
                 console.log('OneSignal inicializado correctamente');
 
-                // Verificar estado de suscripción
+                // ===== VENTANA EMERGENTE DE SUSCRIPCIÓN EN CADA VISITA =====
+                // Si el usuario aún no está suscrito, mostrar el slidedown de OneSignal
+                // (force: true para que aparezca en cada visita, sin esperar el backoff).
                 const isSubscribed = await OneSignal.User.PushSubscription.isSubscribed();
                 console.log('Estado de suscripción:', isSubscribed ? 'Suscrito' : 'No suscrito');
-
-                // ===== AUTO-PROMPT DE SUSCRIPCIÓN =====
-                // Si el usuario no está suscrito y no ha sido preguntado en esta sesión,
-                // pedir permiso automáticamente después de 2 segundos.
-                if (!isSubscribed && !sessionStorage.getItem('jubilo_push_prompted')) {
-                    sessionStorage.setItem('jubilo_push_prompted', '1');
-                    setTimeout(async () => {
-                        try {
-                            console.log('Solicitando permiso de notificaciones automáticamente...');
-                            await OneSignal.User.PushSubscription.optIn();
-                            const nowSubscribed = await OneSignal.User.PushSubscription.isSubscribed();
-                            console.log('Resultado auto-prompt:', nowSubscribed ? 'Suscrito' : 'No suscrito');
-                            if (window.updatePushButtonUI) window.updatePushButtonUI();
-                        } catch (e) {
-                            console.warn('Auto-prompt de suscripción falló:', e);
-                        }
-                    }, 2000);
+                if (!isSubscribed) {
+                    setTimeout(function() {
+                        OneSignal.Slidedown.promptPush({ force: true });
+                    }, 1500);
                 }
             } catch (e) {
                 console.error('Error al inicializar OneSignal:', e);
             }
-
-            // Notificar a jubiloPush que OneSignal está listo
-            window.jubiloPush.init(OneSignal);
         });
-    </script>
-    {% else %}
-    <script>
-        window.jubiloPush = {
-            requestPushPermissionAndSubscribe: async function() { return false; },
-            unsubscribePush: async function() {},
-            getSubscriptionState: async function() { return 'unsupported'; }
-        };
     </script>
     {% endif %}
 

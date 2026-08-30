@@ -17,12 +17,6 @@
         <div class="stat-value">{% if has_onesignal %}Activo{% else %}Inactivo{% endif %}</div>
         <div class="stat-label">OneSignal</div>
     </div>
-    <div class="stat-card">
-        <button id="enablePushBtn" class="btn btn-primary" type="button" onclick="togglePushNotifications()">
-            🔔 Activar push
-        </button>
-        <div id="pushStatus" class="muted small" style="margin-top: 0.75rem;"></div>
-    </div>
 </div>
 
 <div class="auth-card" style="max-width: 760px; margin: 20px auto; text-align: left;">
@@ -108,42 +102,6 @@
 {% endif %}
 
 <script>
-async function updatePushButtonUI() {
-    const btn = document.getElementById('enablePushBtn');
-    const status = document.getElementById('pushStatus');
-    if (!btn || !status) return;
-
-    // jubiloPush existe desde el inicio (definido en base.html) y espera
-    // internamente a que OneSignal esté listo.
-    if (!window.jubiloPush) {
-        btn.style.display = 'none';
-        status.textContent = '⏳ OneSignal no respondió. Recarga la página.';
-        return;
-    }
-
-    const state = await window.jubiloPush.getSubscriptionState();
-    btn.style.display = 'inline-block';
-
-    if (state === 'active') {
-        btn.textContent = '🔕 Desactivar push';
-        btn.className = 'btn btn-danger';
-        status.textContent = 'Este navegador recibirá avisos push.';
-    } else if (state === 'denied') {
-        btn.textContent = '🔔 Activar push';
-        btn.className = 'btn btn-primary';
-        status.textContent = 'Permiso denegado en el navegador.';
-    } else if (state === 'unsupported') {
-        btn.style.display = 'none';
-        status.textContent = 'Este navegador no soporta push.';
-    } else {
-        btn.textContent = '🔔 Activar push';
-        btn.className = 'btn btn-primary';
-        status.textContent = 'Activa este navegador para probar envíos.';
-    }
-}
-
-window.updatePushButtonUI = updatePushButtonUI;
-
 // Vista previa de imagen seleccionada desde el dispositivo
 function previewNotifImageFile(input) {
     const preview = document.getElementById('imagePreview');
@@ -159,35 +117,6 @@ function previewNotifImageFile(input) {
     } else {
         preview.style.display = 'none';
         img.src = '';
-    }
-}
-
-async function togglePushNotifications() {
-    if (!window.jubiloPush) {
-        alert('⏳ OneSignal aún no está listo. Intenta en unos segundos.');
-        return;
-    }
-    const state = await window.jubiloPush.getSubscriptionState();
-    
-    if (state === 'active') {
-        await window.jubiloPush.unsubscribePush();
-        await updatePushButtonUI();
-        alert('🔕 Notificaciones push desactivadas.');
-        return;
-    }
-    
-    if (state === 'denied') {
-        alert('⚠️ El navegador tiene bloqueadas las notificaciones para este sitio.\n\nActívalas manualmente:\n1. Haz clic en el ícono de candado 🔒 en la barra de direcciones.\n2. Busca "Notificaciones" y cámbialo a "Permitir".\n3. Recarga la página e intenta de nuevo.');
-        return;
-    }
-    
-    // Estado 'inactive' o 'loading'
-    const ok = await window.jubiloPush.requestPushPermissionAndSubscribe();
-    await updatePushButtonUI();
-    if (ok) {
-        alert('✅ Notificaciones push activadas correctamente.\nRecibirás avisos cuando se creen nuevas notificaciones.');
-    } else {
-        alert('❌ No se pudo activar. Revisa la consola para más detalles.');
     }
 }
 
@@ -222,12 +151,6 @@ async function resendNotification(notificationId) {
         btn.disabled = false;
         btn.innerHTML = originalText;
     }
-}
-
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', updatePushButtonUI);
-} else {
-    updatePushButtonUI();
 }
 </script>
 {% endblock %}
