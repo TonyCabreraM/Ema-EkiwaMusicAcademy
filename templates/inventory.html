@@ -82,22 +82,22 @@
 
                 <!-- Vender / Reponer -->
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px;">
-                    <form method="POST" action="{{ url_for('sell_product', product_id=p.id) }}" style="display: flex; gap: 4px;">
+                    <form method="POST" action="{{ url_for('sell_product', product_id=p.id) }}" style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
                         <input type="number" name="quantity" value="1" min="1" max="{{ p.quantity }}"
-                               style="width: 45px; padding: 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); text-align: center;">
-                        <button type="submit" class="btn btn-sm btn-danger" style="flex: 1;" title="Registrar venta">💸 Vender</button>
+                               style="width: 100%; box-sizing: border-box; padding: 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); text-align: center;">
+                        <button type="submit" class="btn btn-sm btn-danger" style="width: 100%; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="Registrar venta">💸 Vender</button>
                     </form>
-                    <form method="POST" action="{{ url_for('restock_product', product_id=p.id) }}" style="display: flex; gap: 4px;">
+                    <form method="POST" action="{{ url_for('restock_product', product_id=p.id) }}" style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
                         <input type="number" name="quantity" value="1" min="1"
-                               style="width: 45px; padding: 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); text-align: center;">
-                        <button type="submit" class="btn btn-sm btn-primary" style="flex: 1;" title="Registrar reposición">📥 Reponer</button>
+                               style="width: 100%; box-sizing: border-box; padding: 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); text-align: center;">
+                        <button type="submit" class="btn btn-sm btn-primary" style="width: 100%; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="Registrar reposición">📥 Reponer</button>
                     </form>
                 </div>
 
                 <!-- Acciones -->
-                <div style="display: flex; gap: 6px; margin-top: auto;">
-                    <button type="button" class="btn btn-sm" style="flex: 1;" onclick="openEditModal({{ p.id }})">✏️ Editar</button>
-                    <form method="POST" action="{{ url_for('delete_product', product_id=p.id) }}" style="flex: 0;"
+                <div style="display: flex; gap: 6px; margin-top: auto; flex-wrap: wrap;">
+                    <button type="button" class="btn btn-sm" style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" onclick="openEditModal({{ p.id }})">✏️ Editar</button>
+                    <form method="POST" action="{{ url_for('delete_product', product_id=p.id) }}" style="flex: 0 0 auto;"
                           onsubmit="return confirm('¿Eliminar el producto {{ p.name }}?');">
                         <button type="submit" class="btn btn-sm btn-danger">🗑️</button>
                     </form>
@@ -188,6 +188,28 @@
             <div class="stat-value">{{ stats.units_total }}</div>
             <div class="stat-label">Unidades · Total</div>
             <div class="stat-label" style="color: var(--success);">${{ "%.2f"|format(stats.revenue_total) }}</div>
+        </div>
+    </div>
+
+    <!-- Inversión -->
+    <h3 style="margin-top: 25px;">💵 Inversión en productos</h3>
+    <div class="stats" style="margin-top: 0;">
+        <div class="stat-card">
+            <div class="stat-value">${{ "%.2f"|format(stats.current_investment) }}</div>
+            <div class="stat-label">Inversión actual en stock</div>
+            <div class="stat-label" style="color: var(--muted); font-size: 0.75rem;">Coste × cantidad de todos los productos</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">${{ "%.2f"|format(stats.invest_week) }}</div>
+            <div class="stat-label">Invertido · 7 días</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">${{ "%.2f"|format(stats.invest_month) }}</div>
+            <div class="stat-label">Invertido · Este mes</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">${{ "%.2f"|format(stats.invest_total) }}</div>
+            <div class="stat-label">Invertido · Total</div>
         </div>
     </div>
 

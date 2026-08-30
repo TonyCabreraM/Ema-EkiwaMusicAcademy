@@ -1172,6 +1172,22 @@ def create_app():
         units_month, revenue_month = sales_summary(sales_month)
         units_total, revenue_total = sales_summary(sales_all)
 
+        # ---- Inversión ----
+        # Inversión actual en stock: coste × cantidad de cada producto
+        current_investment = sum((p.cost or 0) * p.quantity for p in products)
+
+        # Inversión en reposiciones: coste × unidades repuestas (7 días / mes / total)
+        restocks_all = ProductMovement.query.filter_by(movement_type='restock').all()
+        restocks_week = [m for m in restocks_all if m.created_at and m.created_at >= week_ago]
+        restocks_month = [m for m in restocks_all if m.created_at and m.created_at >= month_start]
+
+        def investment_summary(movements):
+            return sum(m.change * (m.product.cost or 0) for m in movements)
+
+        invest_week = investment_summary(restocks_week)
+        invest_month = investment_summary(restocks_month)
+        invest_total = investment_summary(restocks_all)
+
         reorders_week = ProductMovement.query.filter(
             ProductMovement.movement_type == 'reorder',
             ProductMovement.created_at >= week_ago).count()
@@ -1196,6 +1212,8 @@ def create_app():
             'units_week': units_week, 'revenue_week': revenue_week,
             'units_month': units_month, 'revenue_month': revenue_month,
             'units_total': units_total, 'revenue_total': revenue_total,
+            'current_investment': current_investment,
+            'invest_week': invest_week, 'invest_month': invest_month, 'invest_total': invest_total,
             'reorders_week': reorders_week, 'reorders_month': reorders_month,
             'reorders_total': reorders_total,
             'recent_movements': recent_movements,
