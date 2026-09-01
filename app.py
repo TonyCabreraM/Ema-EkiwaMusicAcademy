@@ -225,6 +225,188 @@ def create_app():
         except Exception as e:
             logger.error(f"[Drive] Error en respaldo automático: {e}")
 
+    def restore_backup_data(data):
+        """Restaura los datos de un respaldo JSON en la base de datos.
+        Devuelve un dict con el resumen de lo importado."""
+        memberships_imported = 0
+        for md in data.get("membership_types", []):
+            existing_m = MembershipType.query.filter_by(id=md["id"]).first()
+
+            def restore_image(b64_data, original_path, prefix):
+                if not b64_data: return None
+                try:
+                    img_dir = os.path.join(app.static_folder, 'img')
+                    os.makedirs(img_dir, exist_ok=True)
+                    filename = f"{prefix}_{secrets.token_hex(8)}.png"
+                    filepath = os.path.join(img_dir, filename)
+                    with open(filepath, "wb") as f:
+                        f.write(base64.b64decode(b64_data))
+                    return f"/static/img/{filename}"
+                except Exception as e:
+                    get_logger().error(f"Error restaurando imagen: {e}")
+                    return original_path
+
+            badge_icon_path = restore_image(md.get("badge_icon_b64"), md.get("badge_icon"), "badge")
+            bg_image_path = restore_image(md.get("background_image_b64"), md.get("background_image"), "membership_bg")
+
+            if existing_m:
+                existing_m.name = md["name"]
+                existing_m.description = md["description"]
+                existing_m.price = md["price"]
+                existing_m.cashback_percent = md["cashback_percent"]
+                existing_m.discount_percent = md["discount_percent"]
+                existing_m.drinks_count = md["drinks_count"]
+                existing_m.grain_bags = md.get("grain_bags", 0)
+                existing_m.badge_icon = badge_icon_path
+                existing_m.badge_color = md.get("badge_color", "#FFD700")
+                existing_m.background_image = bg_image_path
+                existing_m.is_active = md.get("is_active", True)
+            else:
+                db.session.add(MembershipType(
+                    id=md["id"], name=md["name"], description=md["description"],
+                    price=md["price"], cashback_percent=md["cashback_percent"],
+                    discount_percent=md["discount_percent"], drinks_count=md["drinks_count"],
+                    grain_bags=md.get("grain_bags", 0),
+                    badge_icon=badge_icon_path,
+                    badge_color=md.get("badge_color", "#FFD700"),
+                    background_image=bg_image_path, is_active=md.get("is_active", True)
+                ))
+            memberships_imported += 1
+
+        cards_imported = 0
+        for cd in data.get("cards", []):
+            existing = Card.query.filter_by(code=cd["code"]).first()
+            if existing:
+                existing.client_name = cd["client_name"]
+                existing.phone = cd["phone"]
+                existing.balance = cd["balance"]
+                existing.is_active = cd["is_active"]
+                existing.custom_message = cd.get("custom_message")
+                existing.membership_type_id = cd.get("membership_type_id")
+                mem_exp = cd.get("membership_expires_at")
+                existing.membership_expires_at = datetime.strptime(mem_exp, "%Y-%m-%d %H:%M:%S") if mem_exp else None
+                existing.drinks_redeemed_this_month = cd.get("drinks_redeemed_this_month", 0)
+                existing.grain_bags_redeemed_this_month = cd.get("grain_bags_redeemed_this_month", 0)
+                last_reset = cd.get("last_benefit_reset")
+                existing.last_benefit_reset = datetime.strptime(last_reset, "%Y-%m-%d %H:%M:%S") if last_reset else None
+            else:
+                mem_exp = cd.get("membership_expires_at")
+                last_reset = cd.get("last_benefit_reset")
+                db.session.add(Card(
+                    code=cd["code"], client_name=cd["client_name"],
+                    phone=cd["phone"], balance=cd["balance"],
+                    is_active=cd["is_active"], custom_message=cd.get("custom_message"),
+                    membership_type_id=cd.get("membership_type_id"),
+                    membership_expires_at=datetime.strptime(mem_exp, "%Y-%m-%d %H:%M:%S") if mem_exp else None,
+                    drinks_redeemed_this_month=cd.get("drinks_redeemed_this_month", 0),
+                    grain_bags_redeemed_this_month=cd.get("grain_bags_redeemed_this_month", 0),
+                    last_benefit_reset=datetime.strptime(last_reset, "%Y-%m-%d %H:%M:%S") if last_reset else None
+                ))
+            cards_imported += 1
+
+        tx_imported = 0
+        for td in data.get("transactions", []):
+            card = Card.query.filter_by(code=td["card_code"]).first()
+            if card:
+                db.session.add(Transaction(card_id=card.id, type=td["type"],
+                    amount=td["amount"], note=td.get("note")))
+                tx_imported += 1
+
+        not_imported = 0
+        for nd in data.get("notifications", []):
+            db.session.add(Notification(title=nd["title"], message=nd["message"],
+                image_url=nd.get("image_url"),
+                link_url=nd.get("link_url"),
+                created_by_id=session.get("admin_id") if has_request_context() else None))
+            not_imported += 1
+
+        admins_imported = 0
+        for ad in data.get("admins", []):
+            existing_admin = Admin.query.filter_by(username=ad["username"]).first()
+            if existing_admin:
+                existing_admin.password_hash = ad["password_hash"]
+                existing_admin.is_superuser = ad.get("is_superuser", False)
+                existing_admin.is_marketing = ad.get("is_marketing", False)
+            else:
+                new_admin = Admin(
+                    username=ad["username"],
+                    password_hash=ad["password_hash"],
+                    is_superuser=ad.get("is_superuser", False),
+                    is_marketing=ad.get("is_marketing", False)
+                )
+                db.session.add(new_admin)
+            admins_imported += 1
+
+        products_imported = 0
+        for pd in data.get("products", []):
+            existing_p = Product.query.filter_by(id=pd["id"]).first()
+            if existing_p:
+                existing_p.name = pd["name"]
+                existing_p.description = pd.get("description")
+                existing_p.cost = pd.get("cost", 0)
+                existing_p.price = pd.get("price", 0)
+                existing_p.quantity = pd.get("quantity", 0)
+                existing_p.reorder_point = pd.get("reorder_point", 0)
+                existing_p.image_url = pd.get("image_url")
+            else:
+                db.session.add(Product(
+                    id=pd["id"], name=pd["name"], description=pd.get("description"),
+                    cost=pd.get("cost", 0), price=pd.get("price", 0),
+                    quantity=pd.get("quantity", 0), reorder_point=pd.get("reorder_point", 0),
+                    image_url=pd.get("image_url")
+                ))
+            products_imported += 1
+
+        movements_imported = 0
+        for md in data.get("product_movements", []):
+            existing_mv = ProductMovement.query.filter_by(id=md["id"]).first()
+            if not existing_mv:
+                db.session.add(ProductMovement(
+                    id=md["id"], product_id=md["product_id"],
+                    change=md["change"], movement_type=md.get("movement_type", "sale"),
+                    note=md.get("note")
+                ))
+                movements_imported += 1
+
+        db.session.commit()
+        return {
+            "cards": cards_imported,
+            "transactions": tx_imported,
+            "notifications": not_imported,
+            "admins": admins_imported,
+            "products": products_imported,
+            "movements": movements_imported,
+        }
+
+    def restore_latest_backup_from_drive():
+        """Al iniciar la app, restaura el último respaldo de Drive si la base está vacía.
+        Solo restaura cuando no hay tarjetas ni transacciones (base vacía) para no
+        sobrescribir datos existentes (ej. PostgreSQL persistente)."""
+        try:
+            if not drive_backup.is_configured() or not drive_backup.is_connected():
+                logger.info("[Drive] Restauración automática omitida: Drive no conectado.")
+                return
+            with app.app_context():
+                has_cards = Card.query.first() is not None
+                has_tx = Transaction.query.first() is not None
+                if has_cards or has_tx:
+                    logger.info("[Drive] Restauración automática omitida: la base ya tiene datos.")
+                    return
+                content, filename = drive_backup.get_latest_backup_content()
+                if content is None:
+                    logger.info("[Drive] Restauración automática omitida: no hay respaldo en Drive.")
+                    return
+                data = json.loads(content.decode("utf-8"))
+                if "version" not in data or "cards" not in data:
+                    logger.warning("[Drive] Respaldo inválido, restauración omitida.")
+                    return
+                summary = restore_backup_data(data)
+                logger.info(f"[Drive] Base restaurada desde {filename}: {summary}")
+        except Exception as e:
+            logger.error(f"[Drive] Error en restauración automática: {e}")
+
+    restore_latest_backup_from_drive()
+
     @app.context_processor
     def inject_push_config():
         return {
@@ -1896,156 +2078,9 @@ def create_app():
                 flash("Archivo de respaldo invalido", "error")
                 return redirect(url_for("backup"))
             
-            # Importar tipos de membresa
-            memberships_imported = 0
-            for md in data.get("membership_types", []):
-                existing_m = MembershipType.query.filter_by(id=md["id"]).first()
-                
-                # Funcin auxiliar para restaurar imgenes desde Base64
-                def restore_image(b64_data, original_path, prefix):
-                    if not b64_data: return None
-                    try:
-                        img_dir = os.path.join(app.static_folder, 'img')
-                        os.makedirs(img_dir, exist_ok=True)
-                        # Generar nuevo nombre nico para evitar conflictos
-                        filename = f"{prefix}_{secrets.token_hex(8)}.png"
-                        filepath = os.path.join(img_dir, filename)
-                        with open(filepath, "wb") as f:
-                            f.write(base64.b64decode(b64_data))
-                        return f"/static/img/{filename}"
-                    except Exception as e:
-                        get_logger().error(f"Error restaurando imagen: {e}")
-                        return original_path # Fallback a la ruta original si falla
-
-                badge_icon_path = restore_image(md.get("badge_icon_b64"), md.get("badge_icon"), "badge")
-                bg_image_path = restore_image(md.get("background_image_b64"), md.get("background_image"), "membership_bg")
-
-                if existing_m:
-                    existing_m.name = md["name"]
-                    existing_m.description = md["description"]
-                    existing_m.price = md["price"]
-                    existing_m.cashback_percent = md["cashback_percent"]
-                    existing_m.discount_percent = md["discount_percent"]
-                    existing_m.drinks_count = md["drinks_count"]
-                    existing_m.grain_bags = md.get("grain_bags", 0)
-                    existing_m.badge_icon = badge_icon_path
-                    existing_m.badge_color = md.get("badge_color", "#FFD700")
-                    existing_m.background_image = bg_image_path
-                    existing_m.is_active = md.get("is_active", True)
-                else:
-                    db.session.add(MembershipType(
-                        id=md["id"], name=md["name"], description=md["description"],
-                        price=md["price"], cashback_percent=md["cashback_percent"],
-                        discount_percent=md["discount_percent"], drinks_count=md["drinks_count"],
-                        grain_bags=md.get("grain_bags", 0),
-                        badge_icon=badge_icon_path,
-                        badge_color=md.get("badge_color", "#FFD700"),
-                        background_image=bg_image_path, is_active=md.get("is_active", True)
-                    ))
-                memberships_imported += 1
-            
-            cards_imported = 0
-            for cd in data.get("cards", []):
-                existing = Card.query.filter_by(code=cd["code"]).first()
-                if existing:
-                    existing.client_name = cd["client_name"]
-                    existing.phone = cd["phone"]
-                    existing.balance = cd["balance"]
-                    existing.is_active = cd["is_active"]
-                    existing.custom_message = cd.get("custom_message")
-                    # Restaurar membresa y beneficios
-                    existing.membership_type_id = cd.get("membership_type_id")
-                    mem_exp = cd.get("membership_expires_at")
-                    existing.membership_expires_at = datetime.strptime(mem_exp, "%Y-%m-%d %H:%M:%S") if mem_exp else None
-                    existing.drinks_redeemed_this_month = cd.get("drinks_redeemed_this_month", 0)
-                    existing.grain_bags_redeemed_this_month = cd.get("grain_bags_redeemed_this_month", 0)
-                    last_reset = cd.get("last_benefit_reset")
-                    existing.last_benefit_reset = datetime.strptime(last_reset, "%Y-%m-%d %H:%M:%S") if last_reset else None
-                else:
-                    mem_exp = cd.get("membership_expires_at")
-                    last_reset = cd.get("last_benefit_reset")
-                    db.session.add(Card(
-                        code=cd["code"], client_name=cd["client_name"],
-                        phone=cd["phone"], balance=cd["balance"],
-                        is_active=cd["is_active"], custom_message=cd.get("custom_message"),
-                        membership_type_id=cd.get("membership_type_id"),
-                        membership_expires_at=datetime.strptime(mem_exp, "%Y-%m-%d %H:%M:%S") if mem_exp else None,
-                        drinks_redeemed_this_month=cd.get("drinks_redeemed_this_month", 0),
-                        grain_bags_redeemed_this_month=cd.get("grain_bags_redeemed_this_month", 0),
-                        last_benefit_reset=datetime.strptime(last_reset, "%Y-%m-%d %H:%M:%S") if last_reset else None
-                    ))
-                cards_imported += 1
-            
-            tx_imported = 0
-            for td in data.get("transactions", []):
-                card = Card.query.filter_by(code=td["card_code"]).first()
-                if card:
-                    db.session.add(Transaction(card_id=card.id, type=td["type"],
-                        amount=td["amount"], note=td.get("note")))
-                    tx_imported += 1
-            
-            not_imported = 0
-            for nd in data.get("notifications", []):
-                db.session.add(Notification(title=nd["title"], message=nd["message"],
-                    image_url=nd.get("image_url"),
-                    link_url=nd.get("link_url"),
-                    created_by_id=session.get("admin_id")))
-                not_imported += 1
-            
-            # Importar usuarios (Admin)
-            admins_imported = 0
-            for ad in data.get("admins", []):
-                existing_admin = Admin.query.filter_by(username=ad["username"]).first()
-                if existing_admin:
-                    existing_admin.password_hash = ad["password_hash"]
-                    existing_admin.is_superuser = ad.get("is_superuser", False)
-                    existing_admin.is_marketing = ad.get("is_marketing", False)
-                else:
-                    new_admin = Admin(
-                        username=ad["username"],
-                        password_hash=ad["password_hash"],
-                        is_superuser=ad.get("is_superuser", False),
-                        is_marketing=ad.get("is_marketing", False)
-                    )
-                    db.session.add(new_admin)
-                admins_imported += 1
-
-            # Importar productos del inventario
-            products_imported = 0
-            for pd in data.get("products", []):
-                existing_p = Product.query.filter_by(id=pd["id"]).first()
-                if existing_p:
-                    existing_p.name = pd["name"]
-                    existing_p.description = pd.get("description")
-                    existing_p.cost = pd.get("cost", 0)
-                    existing_p.price = pd.get("price", 0)
-                    existing_p.quantity = pd.get("quantity", 0)
-                    existing_p.reorder_point = pd.get("reorder_point", 0)
-                    existing_p.image_url = pd.get("image_url")
-                else:
-                    db.session.add(Product(
-                        id=pd["id"], name=pd["name"], description=pd.get("description"),
-                        cost=pd.get("cost", 0), price=pd.get("price", 0),
-                        quantity=pd.get("quantity", 0), reorder_point=pd.get("reorder_point", 0),
-                        image_url=pd.get("image_url")
-                    ))
-                products_imported += 1
-
-            # Importar movimientos de stock
-            movements_imported = 0
-            for md in data.get("product_movements", []):
-                existing_mv = ProductMovement.query.filter_by(id=md["id"]).first()
-                if not existing_mv:
-                    db.session.add(ProductMovement(
-                        id=md["id"], product_id=md["product_id"],
-                        change=md["change"], movement_type=md.get("movement_type", "sale"),
-                        note=md.get("note")
-                    ))
-                    movements_imported += 1
-
-            db.session.commit()
+            summary = restore_backup_data(data)
             upload_backup_to_drive_after_change()
-            flash(f"Respaldo importado: {cards_imported} tarjetas, {tx_imported} transacciones, {not_imported} notificaciones, {admins_imported} usuarios, {products_imported} productos, {movements_imported} movimientos", "success")
+            flash(f"Respaldo importado: {summary['cards']} tarjetas, {summary['transactions']} transacciones, {summary['notifications']} notificaciones, {summary['admins']} usuarios, {summary['products']} productos, {summary['movements']} movimientos", "success")
         except Exception as e:
             db.session.rollback()
             flash(f"Error al importar: {str(e)}", "error")

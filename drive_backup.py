@@ -27,7 +27,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
+from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 
 # Scopes necesarios: acceso completo a los archivos de Drive del usuario.
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
@@ -339,3 +339,53 @@ def upload_postgres_dump():
         return True, f"Dump de PostgreSQL subido a Drive ({action}): {filename}"
     except Exception as e:
         return False, f"Error subiendo dump a Drive: {e}"
+
+
+def list_files_in_subfolder(service, subfolder_name=DRIVE_DB_SUBFOLDER):
+    """Lista los archivos de la subcarpeta de respaldos de la base de datos,
+    ordenados por fecha de modificación (más reciente primero)."""
+    root_id = get_or_create_root_folder(service)
+    sub_id = get_or_create_subfolder(service, root_id, subfolder_name)
+    query = f"'{sub_id}' in parents and trashed=false"
+    results = service.files().list(
+        q=query,
+        fields="files(id, name, modifiedTime)",
+        pageSize=100,
+        orderBy="modifiedTime desc",
+    ).execute()
+    return results.get("files", [])
+
+
+def download_file_content(service, file_id):
+    """Descarga el contenido de un archivo de Drive y lo devuelve como bytes."""
+    request = service.files().get_media(fileId=file_id)
+    buf = io.BytesIO()
+    downloader = MediaIoBaseDownload(buf, request)
+    done = False
+    while not done:
+        _, done = downloader.next_chunk()
+    return buf.getvalue()
+
+
+def get_latest_backup_content():
+    """Descarga el contenido del respaldo JSON más reciente de la subcarpeta.
+    Devuelve (bytes, filename) o (None, None)."""
+    if not is_configured() or not is_connected():
+        return None, None
+    try:
+        service = get_drive_service()
+        if not service:
+            return None, None
+        files = list_files_in_subfolder(service)
+        json_files = [
+            f for f in files
+            if f.get("name", "").startswith("backup_") and f.get("name", "").endswith(".json")
+        ]
+        if not json_files:
+            return None, None
+        latest = json_files[0]  # ya ordenado por modifiedTime desc
+        content = download_file_content(service, latest["id"])
+        return content, latest["name"]
+    except Exception as e:
+        print(f"[Drive] Error obteniendo último respaldo: {e}")
+        return None, None
