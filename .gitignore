@@ -18,9 +18,13 @@ instance/
 
 # Local backups and sensitive exports
 JubiloBackup.json
+jubilo_backup_*.json
 *.bak
 *.backup
 backups/
+*.jpg
+*.jpeg
+*.png
 
 # Tooling and OS files
 .pytest_cache/
