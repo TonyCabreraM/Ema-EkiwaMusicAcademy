@@ -389,12 +389,12 @@ function switchTab(tab) {
     tabs.forEach(t => {
         document.getElementById('tab-' + t).style.display = (t === tab) ? 'block' : 'none';
         const btn = document.getElementById('tabBtn-' + t);
+        // Mantener SIEMPRE la clase 'btn' para conservar el padding y estilos base.
+        // Solo alternar 'btn-primary' para resaltar la pestaña activa.
         if (t === tab) {
             btn.classList.add('btn-primary');
-            btn.classList.remove('btn');
         } else {
             btn.classList.remove('btn-primary');
-            btn.classList.add('btn');
         }
     });
 }
