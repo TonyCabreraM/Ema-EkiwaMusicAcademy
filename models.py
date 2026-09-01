@@ -194,6 +194,30 @@ class MembershipType(db.Model):
             'background_image': self.background_image
         }
 
+
+class PurchaseRequest(db.Model):
+    """Solicitud de compra de membresía en línea (Stripe).
+    Se crea cuando el cliente inicia el pago y se marca como 'paid'
+    cuando Stripe confirma el pago; en ese momento se crea la tarjeta con QR."""
+    __tablename__ = 'purchase_requests'
+
+    id = db.Column(db.Integer, primary_key=True)
+    client_name = db.Column(db.String(120), nullable=False)
+    phone = db.Column(db.String(30), nullable=False)
+    membership_type_id = db.Column(db.Integer, db.ForeignKey('membership_types.id'), nullable=True)
+    status = db.Column(db.String(20), default='pending')  # pending / paid / failed
+    stripe_session_id = db.Column(db.String(200), nullable=True)
+    amount = db.Column(db.Float, nullable=False, default=0)
+    card_code = db.Column(db.String(40), nullable=True)  # tarjeta creada al pagar
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    paid_at = db.Column(db.DateTime, nullable=True)
+
+    membership_type = db.relationship('MembershipType', backref='purchase_requests', lazy=True)
+
+    def __repr__(self) -> str:
+        return f"<PurchaseRequest {self.id} {self.status}>"
+
+
 class PushSubscription(db.Model):
     """Modelo de suscripción para notificaciones push"""
     __tablename__ = 'push_subscriptions'

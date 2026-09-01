@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>🛒 Compras de membresías</h2>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">← Volver</a>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Cliente</th>
+                            <th>Teléfono</th>
+                            <th>Membresía</th>
+                            <th>Monto</th>
+                            <th>Estado</th>
+                            <th>Fecha</th>
+                            <th>Tarjeta</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in purchases %}
+                        <tr>
+                            <td>{{ p.id }}</td>
+                            <td>{{ p.client_name }}</td>
+                            <td>{{ p.phone }}</td>
+                            <td>{{ p.membership_type.name if p.membership_type else '—' }}</td>
+                            <td>${{ "%.2f"|format(p.amount) }}</td>
+                            <td>
+                                {% if p.status == 'paid' %}
+                                <span class="badge bg-success">✅ Pagado</span>
+                                {% elif p.status == 'pending' %}
+                                <span class="badge bg-warning">⏳ Pendiente</span>
+                                {% else %}
+                                <span class="badge bg-danger">❌ {{ p.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ p.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                            <td>
+                                {% if p.card_code %}
+                                <a href="{{ url_for('view_card', code=p.card_code) }}">{{ p.card_code[:8] }}...</a>
+                                {% else %}—{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if not purchases %}
+            <p class="muted text-center mb-0">Aún no hay compras.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

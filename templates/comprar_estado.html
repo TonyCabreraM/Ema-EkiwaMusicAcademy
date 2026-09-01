@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Estado de mi compra · Júbilo{% endblock %}
+{% block content %}
+{% if not session.get('admin_id') %}
+<style>
+    .menu-toggle, .sidebar, .sidebar-overlay, .footer { display: none !important; }
+    .container { max-width: 100%; padding: 20px; }
+</style>
+{% endif %}
+
+<div class="container mt-4" style="max-width: 600px; margin: 20px auto;">
+    <div class="text-center mb-4">
+        <h1>🔍 Estado de mi compra</h1>
+        <p class="muted">Escribe el teléfono que usaste al comprar para ver tu tarjeta y QR.</p>
+    </div>
+
+    <div class="auth-card" style="max-width: 400px; margin: 0 auto 20px;">
+        <form method="POST" action="{{ url_for('comprar_estado') }}">
+            <div class="form-group">
+                <label for="phone">Tu teléfono</label>
+                <input type="tel" id="phone" name="phone" class="form-control" value="{{ phone }}" required>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Consultar</button>
+        </form>
+    </div>
+
+    {% if result %}
+        {% if result.card %}
+        <div class="card-view" style="max-width: 400px; margin: 20px auto; text-align: center;">
+            <h2>✅ ¡Tu membresía está activa!</h2>
+            <p class="muted">Muestra este QR en el establecimiento para usar tus beneficios.</p>
+            <img src="{{ url_for('card_qr', code=result.card.code) }}" alt="QR" style="width: 220px; height: 220px; border-radius: 12px; background: white; padding: 8px;">
+            <p class="muted small mt-2">Código: <code>{{ result.card.code }}</code></p>
+            <p class="muted small">Membresía: <strong>{{ result.purchase.membership_type.name if result.purchase.membership_type else '—' }}</strong></p>
+            <a href="{{ url_for('view_card', code=result.card.code) }}" class="btn btn-primary mt-3">Ver mi tarjeta</a>
+        </div>
+        {% else %}
+        <div class="alert alert-warning text-center">
+            ⏳ Tu pago está <strong>pendiente de confirmación</strong>.<br>
+            <span class="small">Si ya pagaste, espera unos minutos y vuelve a consultar.</span>
+        </div>
+        {% endif %}
+    {% elif phone %}
+    <div class="alert alert-info text-center">No encontramos ninguna compra con ese teléfono.</div>
+    {% endif %}
+</div>
+{% endblock %}

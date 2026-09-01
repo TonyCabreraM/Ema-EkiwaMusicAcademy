@@ -50,6 +50,7 @@
                 {% if session.get('is_superuser') %}
                 <a href="{{ url_for('memberships') }}" class="sidebar-link">💎 Membresías</a>
                 <a href="{{ url_for('stats') }}" class="sidebar-link">📈 Estadísticas</a>
+                <a href="{{ url_for('compras') }}" class="sidebar-link">🛒 Compras</a>
                 <a href="{{ url_for('backup') }}" class="sidebar-link">💾 Backup</a>
                 <a href="{{ url_for('users') }}" class="sidebar-link">👥 Usuarios</a>
                 {% endif %}

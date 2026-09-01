@@ -3,9 +3,10 @@ from datetime import datetime, timedelta
 from flask import Flask, flash, redirect, render_template, request, send_file, session, url_for, Response, jsonify, has_request_context
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
-from models import db, Admin, Card, Transaction, Notification, PushSubscription, MembershipType, Product, ProductMovement, AppSetting, generate_unique_code, init_db
+from models import db, Admin, Card, Transaction, Notification, PushSubscription, MembershipType, Product, ProductMovement, AppSetting, PurchaseRequest, generate_unique_code, init_db
 from utils import get_logger, generate_qr_image, generate_deep_link, sanitize_input, generate_whatsapp_image
 import drive_backup
+import stripe
 from dotenv import load_dotenv
 
 # -- OneSignal config --
@@ -17,6 +18,14 @@ ONESIGNAL_APP_ID = os.environ.get("ONESIGNAL_APP_ID", "")
 ONESIGNAL_REST_API_KEY = os.environ.get("ONESIGNAL_REST_API_KEY", "")
 ONESIGNAL_SAFARI_WEB_ID = os.environ.get("ONESIGNAL_SAFARI_WEB_ID", "")
 HAS_ONESIGNAL = bool(ONESIGNAL_APP_ID and ONESIGNAL_REST_API_KEY)
+
+# -- Stripe (pagos en línea) --
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+STRIPE_CURRENCY = os.environ.get("STRIPE_CURRENCY", "mxn")
+if STRIPE_SECRET_KEY:
+    stripe.api_key = STRIPE_SECRET_KEY
 
 def create_app():
     app = Flask(__name__)
@@ -1913,6 +1922,149 @@ def create_app():
             "last_error": drive_backup.get_last_drive_error(),
         }
         return render_template("drive_diagnostico.html", info=info)
+
+    # ===== COMPRA DE MEMBRESÍAS EN LÍNEA (Stripe) =====
+    def create_card_from_purchase(purchase):
+        """Crea la tarjeta con QR único cuando se aprueba el pago de una membresía."""
+        code = generate_unique_code()
+        card = Card(
+            code=code,
+            client_name=purchase.client_name,
+            phone=purchase.phone,
+            balance=0,
+            custom_message="¡Bienvenido a Júbilo! Disfruta de tu membresía.",
+            is_active=True,
+            membership_type_id=purchase.membership_type_id,
+            membership_expires_at=datetime.utcnow() + timedelta(days=30),
+        )
+        db.session.add(card)
+        db.session.flush()
+        card.add_transaction(0, "carga", "Alta por compra de membresía en línea")
+        purchase.status = "paid"
+        purchase.card_code = code
+        purchase.paid_at = datetime.utcnow()
+        db.session.commit()
+        upload_backup_to_drive_after_change()
+        return card
+
+    @app.route("/comprar")
+    def comprar():
+        """Página pública para comprar membresías."""
+        plans = MembershipType.query.filter_by(is_active=True).order_by(MembershipType.price.asc()).all()
+        return render_template("comprar.html", plans=plans, stripe_configured=bool(STRIPE_SECRET_KEY))
+
+    @app.route("/comprar", methods=["POST"])
+    def comprar_submit():
+        """Crea la solicitud de compra y redirige a Stripe Checkout."""
+        client_name = sanitize_input(request.form.get("client_name", ""))
+        phone = sanitize_input(request.form.get("phone", ""))
+        membership_type_id = request.form.get("membership_type_id")
+        if not client_name or not phone or not membership_type_id:
+            flash("Completa todos los campos", "error")
+            return redirect(url_for("comprar"))
+        membership = MembershipType.query.get(membership_type_id)
+        if not membership or not membership.is_active:
+            flash("Plan no válido", "error")
+            return redirect(url_for("comprar"))
+        if not STRIPE_SECRET_KEY:
+            flash("El pago en línea aún no está configurado.", "error")
+            return redirect(url_for("comprar"))
+
+        purchase = PurchaseRequest(
+            client_name=client_name,
+            phone=phone,
+            membership_type_id=membership.id,
+            status="pending",
+            amount=membership.price,
+        )
+        db.session.add(purchase)
+        db.session.commit()
+
+        try:
+            checkout = stripe.checkout.Session.create(
+                payment_method_types=["card"],
+                line_items=[{
+                    "price_data": {
+                        "currency": STRIPE_CURRENCY,
+                        "product_data": {"name": f"Membresía {membership.name}"},
+                        "unit_amount": int(round(membership.price * 100)),
+                    },
+                    "quantity": 1,
+                }],
+                mode="payment",
+                success_url=f"{get_public_base_url()}/comprar/confirmacion?session_id={{CHECKOUT_SESSION_ID}}",
+                cancel_url=f"{get_public_base_url()}/comprar?cancelado=1",
+                client_reference_id=str(purchase.id),
+                metadata={"purchase_id": str(purchase.id), "phone": phone, "client_name": client_name},
+            )
+            purchase.stripe_session_id = checkout.id
+            db.session.commit()
+            return redirect(checkout.url)
+        except Exception as e:
+            logger.error(f"Error creando sesión Stripe: {e}")
+            flash("Error al iniciar el pago. Intenta de nuevo.", "error")
+            return redirect(url_for("comprar"))
+
+    @app.route("/comprar/confirmacion")
+    def comprar_confirmacion():
+        """Stripe redirige aquí tras el pago. Verifica y crea la tarjeta."""
+        session_id = request.args.get("session_id")
+        if not session_id:
+            return redirect(url_for("comprar"))
+        try:
+            checkout = stripe.checkout.Session.retrieve(session_id)
+            purchase = PurchaseRequest.query.filter_by(stripe_session_id=session_id).first()
+            if checkout.payment_status == "paid" and purchase and purchase.status != "paid":
+                create_card_from_purchase(purchase)
+            return redirect(url_for("comprar_estado", phone=purchase.phone if purchase else ""))
+        except Exception as e:
+            logger.error(f"Error confirmando pago: {e}")
+            return redirect(url_for("comprar"))
+
+    @app.route("/comprar/webhook", methods=["POST"])
+    def comprar_webhook():
+        """Webhook de Stripe (confirmación fiable del pago)."""
+        payload = request.get_data()
+        sig_header = request.headers.get("Stripe-Signature")
+        if not STRIPE_WEBHOOK_SECRET:
+            return "webhook no configurado", 400
+        try:
+            event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+        except ValueError:
+            return "invalid payload", 400
+        except stripe.error.SignatureVerificationError:
+            return "invalid signature", 400
+        if event["type"] == "checkout.session.completed":
+            session_obj = event["data"]["object"]
+            purchase = PurchaseRequest.query.filter_by(stripe_session_id=session_obj["id"]).first()
+            if purchase and purchase.status != "paid":
+                create_card_from_purchase(purchase)
+        return "ok", 200
+
+    @app.route("/comprar/estado", methods=["GET", "POST"])
+    def comprar_estado():
+        """Página pública: el cliente consulta su compra con su teléfono."""
+        phone = sanitize_input(request.form.get("phone", request.args.get("phone", "")))
+        result = None
+        if phone:
+            purchases = PurchaseRequest.query.filter_by(phone=phone).order_by(PurchaseRequest.created_at.desc()).all()
+            paid = next((p for p in purchases if p.status == "paid" and p.card_code), None)
+            if paid:
+                card = Card.query.filter_by(code=paid.card_code).first()
+                result = {"purchase": paid, "card": card}
+            elif purchases:
+                result = {"purchase": purchases[0], "card": None}
+        return render_template("comprar_estado.html", phone=phone, result=result)
+
+    @app.route("/compras")
+    def compras():
+        """Lista de compras de membresías (solo superusuario)."""
+        if not session.get("admin_id"): return redirect(url_for("login"))
+        if not session.get("is_superuser"):
+            flash("Solo el superusuario puede ver las compras", "error")
+            return redirect(url_for("dashboard"))
+        purchases = PurchaseRequest.query.order_by(PurchaseRequest.created_at.desc()).all()
+        return render_template("compras.html", purchases=purchases)
 
     # ===== BACKUP (solo superusuarios) =====
     @app.route("/backup")

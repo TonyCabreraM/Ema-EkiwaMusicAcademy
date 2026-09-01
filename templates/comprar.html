@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Comprar membresía · Júbilo{% endblock %}
+{% block content %}
+{% if not session.get('admin_id') %}
+<style>
+    .menu-toggle, .sidebar, .sidebar-overlay, .footer { display: none !important; }
+    .container { max-width: 100%; padding: 20px; }
+</style>
+{% endif %}
+
+<div class="container mt-4" style="max-width: 700px; margin: 20px auto;">
+    <div class="text-center mb-4">
+        <h1>🎁 Júbilo</h1>
+        <p class="muted">Elige tu membresía y paga en línea. Al aprobarse el pago, recibirás tu tarjeta con QR único para usarla en el establecimiento.</p>
+    </div>
+
+    {% if not stripe_configured %}
+    <div class="alert alert-warning">⚠️ El pago en línea aún no está disponible. Vuelve más tarde.</div>
+    {% endif %}
+
+    <!-- Planes -->
+    <div class="row">
+        {% for plan in plans %}
+        <div class="col-md-6 mb-3">
+            <div class="card h-100" style="border: 2px solid {{ plan.badge_color or '#FFD700' }};">
+                <div class="card-body text-center">
+                    {% if plan.badge_icon %}
+                    <img src="{{ plan.badge_icon }}" alt="{{ plan.name }}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 50%; border: 3px solid {{ plan.badge_color or '#FFD700' }};">
+                    {% else %}
+                    <div style="font-size: 2.5rem;">💎</div>
+                    {% endif %}
+                    <h4 class="mt-2">{{ plan.name }}</h4>
+                    <p class="muted small">{{ plan.description }}</p>
+                    <h3>${{ "%.2f"|format(plan.price) }}</h3>
+                    <ul class="text-start small" style="list-style: none; padding: 0; display: inline-block;">
+                        {% if plan.drinks_count %}<li>🍹 {{ plan.drinks_count }} bebidas/mes</li>{% endif %}
+                        {% if plan.grain_bags %}<li>🌾 {{ plan.grain_bags }} bolsas de grano</li>{% endif %}
+                        {% if plan.discount_percent %}<li>💰 {{ plan.discount_percent }}% descuento</li>{% endif %}
+                        {% if plan.cashback_percent %}<li>↩️ {{ plan.cashback_percent }}% cashback</li>{% endif %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Formulario -->
+    <div class="auth-card" style="max-width: 500px; margin: 20px auto;">
+        <h3>🛒 Comprar membresía</h3>
+        <form method="POST" action="{{ url_for('comprar_submit') }}">
+            <div class="form-group">
+                <label for="client_name">Tu nombre</label>
+                <input type="text" id="client_name" name="client_name" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label for="phone">Tu teléfono (para consultar tu QR)</label>
+                <input type="tel" id="phone" name="phone" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label for="membership_type_id">Membresía</label>
+                <select id="membership_type_id" name="membership_type_id" class="form-control" required>
+                    <option value="">Selecciona un plan...</option>
+                    {% for plan in plans %}
+                    <option value="{{ plan.id }}">{{ plan.name }} — ${{ "%.2f"|format(plan.price) }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block" {% if not stripe_configured %}disabled{% endif %}>💳 Pagar con tarjeta</button>
+        </form>
+        <p class="muted small mt-3 text-center">Después de pagar, consulta tu QR en <a href="{{ url_for('comprar_estado') }}">Estado de mi compra</a>.</p>
+    </div>
+</div>
+{% endblock %}
