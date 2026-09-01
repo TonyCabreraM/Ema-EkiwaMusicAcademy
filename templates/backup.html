@@ -24,6 +24,41 @@
     <p class="muted" style="margin-top: 8px;">💡 En Render la base de datos PostgreSQL es persistente; los respaldos automáticos en disco son una capa extra de seguridad. Descarga periódicamente el respaldo completo para guardarlo fuera del servidor.</p>
 </div>
 
+<!-- Google Drive -->
+<div class="auth-card" style="max-width: 700px; margin: 20px auto;">
+    <h3>☁️ Respaldo en Google Drive</h3>
+    <p class="muted">Conecta tu cuenta de Google para que los respaldos se suban <strong>automáticamente a la nube</strong> después de cada cambio (ventas, recargas, altas de productos, etc.). Así tendrás un respaldo seguro fuera del servidor.</p>
+
+    {% if drive_status and drive_status.configured %}
+        {% if drive_status.connected %}
+            <div style="padding: 12px; border-radius: 8px; background: rgba(40,167,69,0.12); border: 1px solid rgba(40,167,69,0.4); margin: 12px 0;">
+                <strong style="color: #28a745;">✅ Conectado a Google Drive</strong>
+                <p class="muted" style="margin-top: 6px;">Los respaldos se suben automáticamente a la carpeta <code>JubiloBackups</code> de tu Drive después de cada cambio.</p>
+            </div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px;">
+                <form method="POST" action="{{ url_for('drive_test') }}" style="margin: 0;">
+                    <button type="submit" class="btn btn-success">🧪 Probar conexión</button>
+                </form>
+                <form method="POST" action="{{ url_for('drive_disconnect') }}" style="margin: 0;"
+                      onsubmit="return confirm('¿Desconectar Google Drive? Los respaldos dejarán de subirse a la nube.');">
+                    <button type="submit" class="btn btn-danger">🔌 Desconectar</button>
+                </form>
+            </div>
+        {% else %}
+            <div style="padding: 12px; border-radius: 8px; background: rgba(255,193,7,0.12); border: 1px solid rgba(255,193,7,0.4); margin: 12px 0;">
+                <strong style="color: #ffc107;">⚠️ No conectado</strong>
+                <p class="muted" style="margin-top: 6px;">Pulsa el botón para autorizar el acceso a tu Google Drive. Se abrirá una ventana de Google donde deberás iniciar sesión y aceptar los permisos.</p>
+            </div>
+            <a href="{{ url_for('drive_auth') }}" class="btn btn-primary" style="margin-top: 12px;">🔗 Conectar con Google Drive</a>
+        {% endif %}
+    {% else %}
+        <div style="padding: 12px; border-radius: 8px; background: rgba(220,53,69,0.12); border: 1px solid rgba(220,53,69,0.4); margin: 12px 0;">
+            <strong style="color: #dc3545;">❌ No configurado</strong>
+            <p class="muted" style="margin-top: 6px;">Faltan las variables de entorno <code>GOOGLE_DRIVE_CLIENT_ID</code> y <code>GOOGLE_DRIVE_CLIENT_SECRET</code>. Configúralas en Render para poder conectar Google Drive.</p>
+        </div>
+    {% endif %}
+</div>
+
 <!-- Importar -->
 <div class="auth-card" style="max-width: 700px; margin: 20px auto;">
     <h3>📥 Restaurar desde respaldo</h3>

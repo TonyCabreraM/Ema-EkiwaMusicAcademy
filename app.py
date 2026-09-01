@@ -3,8 +3,9 @@ from datetime import datetime, timedelta
 from flask import Flask, flash, redirect, render_template, request, send_file, session, url_for, Response, jsonify, has_request_context
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
-from models import db, Admin, Card, Transaction, Notification, PushSubscription, MembershipType, Product, ProductMovement, generate_unique_code, init_db
+from models import db, Admin, Card, Transaction, Notification, PushSubscription, MembershipType, Product, ProductMovement, AppSetting, generate_unique_code, init_db
 from utils import get_logger, generate_qr_image, generate_deep_link, sanitize_input, generate_whatsapp_image
+import drive_backup
 from dotenv import load_dotenv
 
 # -- OneSignal config --
@@ -148,6 +149,79 @@ def create_app():
             logger.error(f"Error creando respaldo automático: {e}")
 
     create_auto_backup()
+
+    def collect_backup_data():
+        """Recopila todos los datos de la app en un dict (para respaldos)."""
+        return {
+            "version": "1.3",
+            "exported_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+            "cards": [{"code": c.code, "client_name": c.client_name, "phone": c.phone,
+                       "balance": float(c.balance), "is_active": c.is_active,
+                       "custom_message": c.custom_message,
+                       "membership_type_id": c.membership_type_id,
+                       "membership_expires_at": c.membership_expires_at.strftime("%Y-%m-%d %H:%M:%S") if c.membership_expires_at else None,
+                       "drinks_redeemed_this_month": c.drinks_redeemed_this_month,
+                       "grain_bags_redeemed_this_month": c.grain_bags_redeemed_this_month,
+                       "last_benefit_reset": c.last_benefit_reset.strftime("%Y-%m-%d %H:%M:%S") if c.last_benefit_reset else None,
+                       "created_at": c.created_at.strftime("%Y-%m-%d %H:%M:%S") if c.created_at else None}
+                      for c in Card.query.all()],
+            "transactions": [{"card_code": (Card.query.filter_by(id=t.card_id).first().code if Card.query.filter_by(id=t.card_id).first() else None),
+                              "type": t.type, "amount": float(t.amount), "note": t.note,
+                              "created_at": t.created_at.strftime("%Y-%m-%d %H:%M:%S") if t.created_at else None}
+                             for t in Transaction.query.all()],
+            "notifications": [{"title": n.title, "message": n.message, "image_url": n.image_url,
+                               "link_url": n.link_url,
+                               "created_at": n.created_at.strftime("%Y-%m-%d %H:%M:%S") if n.created_at else None}
+                              for n in Notification.query.all()],
+            "admins": [{"username": a.username, "password_hash": a.password_hash,
+                        "is_superuser": a.is_superuser, "is_marketing": a.is_marketing}
+                       for a in Admin.query.all()],
+            "membership_types": [{"id": m.id, "name": m.name, "description": m.description,
+                                  "price": m.price, "cashback_percent": m.cashback_percent,
+                                  "discount_percent": m.discount_percent,
+                                  "drinks_count": m.drinks_count, "grain_bags": m.grain_bags,
+                                  "badge_icon": m.badge_icon, "badge_color": m.badge_color,
+                                  "background_image": m.background_image, "is_active": m.is_active}
+                                 for m in MembershipType.query.all()],
+            "products": [{"id": p.id, "name": p.name, "description": p.description,
+                          "cost": float(p.cost), "price": float(p.price),
+                          "quantity": p.quantity, "reorder_point": p.reorder_point,
+                          "image_url": p.image_url}
+                         for p in Product.query.all()],
+            "product_movements": [{"id": m.id, "product_id": m.product_id, "change": m.change,
+                                   "movement_type": m.movement_type, "note": m.note,
+                                   "created_at": m.created_at.strftime("%Y-%m-%d %H:%M:%S") if m.created_at else None}
+                                  for m in ProductMovement.query.all()],
+        }
+
+    def upload_backup_to_drive_after_change():
+        """Genera un respaldo completo y lo sube a Google Drive.
+        Se llama después de cada cambio importante de datos.
+        Usa un nombre de archivo por día (se reemplaza con cada cambio del día)
+        para mantener un historial diario limpio en Drive.
+        No lanza excepciones: solo registra en el log."""
+        try:
+            if not drive_backup.is_configured() or not drive_backup.is_connected():
+                return
+            with app.app_context():
+                data = collect_backup_data()
+                # Nombre por día: se actualiza con cada cambio del día
+                filename = f"backup_{datetime.utcnow().strftime('%Y%m%d')}.json"
+                success, msg = drive_backup.upload_backup_to_drive(data, filename=filename)
+                if success:
+                    logger.info(f"[Drive] {msg}")
+                else:
+                    logger.warning(f"[Drive] {msg}")
+
+                # En producción (PostgreSQL), subir también el dump de la base
+                if os.environ.get("DATABASE_URL", "").startswith("postgres"):
+                    pg_success, pg_msg = drive_backup.upload_postgres_dump()
+                    if pg_success:
+                        logger.info(f"[Drive] {pg_msg}")
+                    else:
+                        logger.warning(f"[Drive] {pg_msg}")
+        except Exception as e:
+            logger.error(f"[Drive] Error en respaldo automático: {e}")
 
     @app.context_processor
     def inject_push_config():
@@ -516,6 +590,7 @@ def create_app():
             )
             db.session.add(new_membership)
             db.session.commit()
+            upload_backup_to_drive_after_change()
             flash(f"Tipo de membresa '{name}' creado correctamente", "success")
             return redirect(url_for("memberships"))
 
@@ -568,6 +643,7 @@ def create_app():
             membership.background_image = None
 
         db.session.commit()
+        upload_backup_to_drive_after_change()
         flash(f"Membresa '{membership.name}' actualizada correctamente", "success")
         return redirect(url_for("memberships"))
 
@@ -590,6 +666,7 @@ def create_app():
         
         db.session.delete(membership)
         db.session.commit()
+        upload_backup_to_drive_after_change()
         flash("Tipo de membresa eliminado", "success")
         return redirect(url_for("memberships"))
 
@@ -685,6 +762,7 @@ def create_app():
                 db.session.flush()
                 card.add_transaction(amount, "carga", "Carga inicial")
                 db.session.commit()
+                upload_backup_to_drive_after_change()
                 flash(f"Tarjeta creada para {client_name}", "success")
                 return redirect(url_for("view_card", code=code))
             except Exception as e:
@@ -777,6 +855,7 @@ def create_app():
         card.add_transaction(amount, "carga", note)
         card.balance += amount
         db.session.commit()
+        upload_backup_to_drive_after_change()
         flash(f"Recargado ${amount:.2f}", "success")
         return redirect(url_for("view_card", code=code))
 
@@ -822,6 +901,7 @@ def create_app():
         
         card.add_transaction(-final_amount, "canje", note)
         db.session.commit()
+        upload_backup_to_drive_after_change()
         
         msg = f"Canjeado ${amount:.2f}"
         if discount_amount > 0: msg += f" con ${discount_amount:.2f} de descuento "
@@ -839,6 +919,7 @@ def create_app():
         card = Card.query.filter_by(code=code).first_or_404()
         db.session.delete(card)
         db.session.commit()
+        upload_backup_to_drive_after_change()
         flash("Tarjeta eliminada", "success")
         return redirect(url_for("dashboard"))
 
@@ -865,6 +946,7 @@ def create_app():
                 new_admin.set_password(password)
                 db.session.add(new_admin)
                 db.session.commit()
+                upload_backup_to_drive_after_change()
                 flash(f"Usuario '{username}' creado correctamente", "success")
                 return redirect(url_for("users"))
         admins = Admin.query.order_by(Admin.created_at.desc()).all()
@@ -882,6 +964,7 @@ def create_app():
         target = Admin.query.filter_by(id=admin_id).first_or_404()
         db.session.delete(target)
         db.session.commit()
+        upload_backup_to_drive_after_change()
         flash(f"Usuario '{target.username}' eliminado", "success")
         return redirect(url_for("users"))
 
@@ -900,6 +983,7 @@ def create_app():
         target = Admin.query.filter_by(id=admin_id).first_or_404()
         target.set_password(password)
         db.session.commit()
+        upload_backup_to_drive_after_change()
         flash("Contrasena actualizada correctamente", "success")
         return redirect(url_for("users"))
 
@@ -959,6 +1043,7 @@ def create_app():
                 )
                 db.session.add(notif)
                 db.session.commit()
+                upload_backup_to_drive_after_change()
                 result = send_push_to_all(title, message, link_url or '/notifications', image_url=image_url or None)
                 if result["ok"]:
                     sent = result["sent"]
@@ -1001,6 +1086,7 @@ def create_app():
                 notif.image_url = image_url or None
                 notif.link_url = link_url or None
                 db.session.commit()
+                upload_backup_to_drive_after_change()
                 flash("Notificacion actualizada correctamente", "success")
                 return redirect(url_for("notifications"))
 
@@ -1089,6 +1175,7 @@ def create_app():
         notif = Notification.query.filter_by(id=notification_id).first_or_404()
         db.session.delete(notif)
         db.session.commit()
+        upload_backup_to_drive_after_change()
         flash("Notificacion eliminada", "success")
         return redirect(url_for("notifications"))
 
@@ -1149,6 +1236,7 @@ def create_app():
                         movement_type='restock', note='Stock inicial'
                     ))
                     db.session.commit()
+                upload_backup_to_drive_after_change()
                 flash(f"Producto '{name}' agregado al inventario", "success")
                 return redirect(url_for("inventory"))
 
@@ -1258,6 +1346,7 @@ def create_app():
             product.image_url = save_product_image(uploaded_image)
 
         db.session.commit()
+        upload_backup_to_drive_after_change()
         flash(f"Producto '{product.name}' actualizado", "success")
         return redirect(url_for("inventory"))
 
@@ -1293,6 +1382,7 @@ def create_app():
             ))
 
         db.session.commit()
+        upload_backup_to_drive_after_change()
         flash(f"Stock de '{product.name}' actualizado", "success")
         return redirect(url_for("inventory"))
 
@@ -1322,6 +1412,7 @@ def create_app():
                 note=f"Alcanzó punto de reorden (quedan {product.quantity}, mínimo {product.reorder_point})"
             ))
         db.session.commit()
+        upload_backup_to_drive_after_change()
         flash(f"Venta registrada: {qty} × '{product.name}'", "success")
         return redirect(url_for("inventory"))
 
@@ -1341,6 +1432,7 @@ def create_app():
             movement_type='restock', note='Reposición de stock'
         ))
         db.session.commit()
+        upload_backup_to_drive_after_change()
         flash(f"Reposición registrada: +{qty} × '{product.name}'", "success")
         return redirect(url_for("inventory"))
 
@@ -1351,6 +1443,7 @@ def create_app():
         product = Product.query.filter_by(id=product_id).first_or_404()
         db.session.delete(product)
         db.session.commit()
+        upload_backup_to_drive_after_change()
         flash(f"Producto '{product.name}' eliminado", "success")
         return redirect(url_for("inventory"))
 
@@ -1378,6 +1471,7 @@ def create_app():
                 card.grain_bags_redeemed_this_month = 0
                 card.last_benefit_reset = datetime.utcnow()
                 db.session.commit()
+                upload_backup_to_drive_after_change()
                 flash(f"Membresa '{membership.name}' asignada. Vence el {card.membership_expires_at.strftime('%d/%m/%Y')}", "success")
             else:
                 flash("Tipo de membresa no encontrado", "error")
@@ -1386,6 +1480,7 @@ def create_app():
             card.membership_type_id = None
             card.membership_expires_at = None
             db.session.commit()
+            upload_backup_to_drive_after_change()
             flash("Membresa desvinculada", "info")
             
         return redirect(url_for("view_card", code=code))
@@ -1408,6 +1503,7 @@ def create_app():
                 card.drinks_redeemed_this_month += 1
                 card.add_transaction(0, "canje_bebida", f"Bebida mensual ({card.drinks_redeemed_this_month}/{card.membership_type.drinks_count})")
                 db.session.commit()
+                upload_backup_to_drive_after_change()
                 flash(f" Bebida canjeada. Llevas {card.drinks_redeemed_this_month} de {card.membership_type.drinks_count} este mes.", "success")
             else:
                 flash(" Has alcanzado el lmite de bebidas mensuales de tu membresa.", "error")
@@ -1434,6 +1530,7 @@ def create_app():
                 card.grain_bags_redeemed_this_month += 1
                 card.add_transaction(0, "canje_grano", f"Bolsa de grano mensual ({card.grain_bags_redeemed_this_month}/{card.membership_type.grain_bags})")
                 db.session.commit()
+                upload_backup_to_drive_after_change()
                 flash(f" Bolsa de grano canjeada. Llevas {card.grain_bags_redeemed_this_month} de {card.membership_type.grain_bags} este mes.", "success")
             else:
                 flash(" Has alcanzado el lmite de bolsas de grano de tu membresa.", "error")
@@ -1487,6 +1584,98 @@ def create_app():
     def not_found(e):
         return render_template("404.html"), 404
 
+    # ===== GOOGLE DRIVE (respaldo en la nube) =====
+    @app.route("/drive/auth")
+    def drive_auth():
+        """Inicia el flujo OAuth para conectar Google Drive."""
+        if not session.get("admin_id"): return redirect(url_for("login"))
+        if not session.get("is_superuser"):
+            flash("Solo el superusuario puede conectar Google Drive", "error")
+            return redirect(url_for("backup"))
+        if not drive_backup.is_configured():
+            flash("Google Drive no está configurado. Faltan GOOGLE_DRIVE_CLIENT_ID y GOOGLE_DRIVE_CLIENT_SECRET en las variables de entorno.", "error")
+            return redirect(url_for("backup"))
+        flow = drive_backup.build_flow()
+        if not flow:
+            flash("No se pudo iniciar la conexión con Google Drive.", "error")
+            return redirect(url_for("backup"))
+        authorization_url, state = flow.authorization_url(
+            access_type="offline",
+            include_granted_scopes="true",
+            prompt="consent",
+        )
+        session["drive_oauth_state"] = state
+        return redirect(authorization_url)
+
+    @app.route("/drive/callback")
+    def drive_callback():
+        """Recibe el código de autorización de Google y guarda el token."""
+        if not session.get("admin_id"): return redirect(url_for("login"))
+        if not session.get("is_superuser"):
+            flash("Solo el superusuario puede conectar Google Drive", "error")
+            return redirect(url_for("backup"))
+        state = session.get("drive_oauth_state")
+        if not state or request.args.get("state") != state:
+            flash("Error de seguridad en la conexión con Google Drive. Intenta de nuevo.", "error")
+            return redirect(url_for("backup"))
+        flow = drive_backup.build_flow()
+        if not flow:
+            flash("Google Drive no está configurado.", "error")
+            return redirect(url_for("backup"))
+        try:
+            flow.fetch_token(authorization_response=request.url)
+            credentials = flow.credentials
+            if drive_backup.save_credentials_to_db(credentials):
+                flash("✅ Google Drive conectado correctamente. Los respaldos se subirán automáticamente.", "success")
+            else:
+                flash("No se pudo guardar la conexión con Google Drive.", "error")
+        except Exception as e:
+            logger.error(f"Error en callback de Drive: {e}")
+            flash(f"Error conectando con Google Drive: {e}", "error")
+        session.pop("drive_oauth_state", None)
+        return redirect(url_for("backup"))
+
+    @app.route("/drive/disconnect", methods=["POST"])
+    def drive_disconnect():
+        """Desconecta Google Drive (borra el token guardado)."""
+        if not session.get("admin_id"): return redirect(url_for("login"))
+        if not session.get("is_superuser"):
+            flash("Solo el superusuario puede desconectar Google Drive", "error")
+            return redirect(url_for("backup"))
+        try:
+            row = AppSetting.query.filter_by(key="drive_token").first()
+            if row:
+                db.session.delete(row)
+                db.session.commit()
+            flash("Google Drive desconectado.", "success")
+        except Exception as e:
+            logger.error(f"Error desconectando Drive: {e}")
+            flash("Error al desconectar Google Drive.", "error")
+        return redirect(url_for("backup"))
+
+    @app.route("/drive/test", methods=["POST"])
+    def drive_test():
+        """Sube un respaldo de prueba a Google Drive para verificar la conexión."""
+        if not session.get("admin_id"): return redirect(url_for("login"))
+        if not session.get("is_superuser"):
+            flash("Solo el superusuario puede probar Google Drive", "error")
+            return redirect(url_for("backup"))
+        if not drive_backup.is_connected():
+            flash("Google Drive no está conectado. Pulsa 'Conectar con Google Drive'.", "error")
+            return redirect(url_for("backup"))
+        # Generar un respaldo de prueba
+        test_data = {
+            "type": "test",
+            "message": "Prueba de conexión con Google Drive",
+            "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        success, msg = drive_backup.upload_backup_to_drive(test_data, filename="test_connection.json")
+        if success:
+            flash(f"✅ {msg}", "success")
+        else:
+            flash(f"❌ {msg}", "error")
+        return redirect(url_for("backup"))
+
     # ===== BACKUP (solo superusuarios) =====
     @app.route("/backup")
     def backup():
@@ -1505,7 +1694,11 @@ def create_app():
             "products": Product.query.count(),
             "movements": ProductMovement.query.count()
         }
-        return render_template("backup.html", stats=stats)
+        drive_status = {
+            "configured": drive_backup.is_configured(),
+            "connected": drive_backup.is_connected(),
+        }
+        return render_template("backup.html", stats=stats, drive_status=drive_status)
 
     @app.route("/backup/export")
     def export_backup():
@@ -1806,6 +1999,7 @@ def create_app():
                     movements_imported += 1
 
             db.session.commit()
+            upload_backup_to_drive_after_change()
             flash(f"Respaldo importado: {cards_imported} tarjetas, {tx_imported} transacciones, {not_imported} notificaciones, {admins_imported} usuarios, {products_imported} productos, {movements_imported} movimientos", "success")
         except Exception as e:
             db.session.rollback()

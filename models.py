@@ -278,6 +278,20 @@ class ProductMovement(db.Model):
         return f"ProductMovement({self.id}, {self.product_id}, {self.change})"
 
 
+class AppSetting(db.Model):
+    """Almacena pares clave-valor de configuración de la aplicación.
+    Se usa para guardar el token OAuth de Google Drive de forma persistente
+    (el disco de Render es efímero, así que se guarda en la base de datos)."""
+    __tablename__ = 'app_settings'
+
+    key = db.Column(db.String(100), primary_key=True)
+    value = db.Column(db.Text, nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self) -> str:
+        return f"<AppSetting {self.key}>"
+
+
 def init_db(app) -> None:
     """Inicializa base de datos y crea admin por defecto"""
     with app.app_context():
@@ -287,6 +301,12 @@ def init_db(app) -> None:
         # columnas nuevas con create_all(). Agregar is_superuser si falta.
         from sqlalchemy import text, inspect
         inspector = inspect(db.engine)
+
+        # Migración: crear tabla app_settings si no existe (para token de Drive)
+        if not inspector.has_table('app_settings'):
+            db.create_all()
+            print("🔧 Migración aplicada: tabla 'app_settings' creada")
+
         admin_cols = [c['name'] for c in inspector.get_columns('admins')]
         if 'is_superuser' not in admin_cols:
             with db.engine.begin() as conn:
