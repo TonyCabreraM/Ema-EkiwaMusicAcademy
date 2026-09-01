@@ -1604,6 +1604,7 @@ def create_app():
             include_granted_scopes="true",
             prompt="consent",
         )
+        drive_backup.record_drive_error("")
         session["drive_oauth_state"] = state
         return redirect(authorization_url)
 
@@ -1616,20 +1617,33 @@ def create_app():
             return redirect(url_for("backup"))
         state = session.get("drive_oauth_state")
         if not state or request.args.get("state") != state:
+            drive_backup.record_drive_error(
+                "Error de seguridad: el estado de la sesión no coincide. "
+                "Esto pasa si SECRET_KEY no está definida en Render (la sesión se pierde "
+                "entre /drive/auth y /drive/callback)."
+            )
+            logger.error("Error en callback de Drive: estado de sesión no coincide (posible SECRET_KEY no definida)")
             flash("Error de seguridad en la conexión con Google Drive. Intenta de nuevo.", "error")
             return redirect(url_for("backup"))
         flow = drive_backup.build_flow(base_url=get_public_base_url())
         if not flow:
+            drive_backup.record_drive_error("Google Drive no está configurado (faltan GOOGLE_DRIVE_CLIENT_ID/SECRET).")
             flash("Google Drive no está configurado.", "error")
             return redirect(url_for("backup"))
         try:
             flow.fetch_token(authorization_response=request.url)
             credentials = flow.credentials
             if drive_backup.save_credentials_to_db(credentials):
+                drive_backup.record_drive_error("")
                 flash("✅ Google Drive conectado correctamente. Los respaldos se subirán automáticamente.", "success")
             else:
+                drive_backup.record_drive_error(
+                    "No se pudo guardar el token en la base de datos (tabla app_settings). "
+                    "Revisa los logs de Render para ver '[Drive] Error guardando token'."
+                )
                 flash("No se pudo guardar la conexión con Google Drive.", "error")
         except Exception as e:
+            drive_backup.record_drive_error(f"Error en fetch_token: {e}")
             logger.error(f"Error en callback de Drive: {e}")
             flash(f"Error conectando con Google Drive: {e}", "error")
         session.pop("drive_oauth_state", None)
@@ -1694,6 +1708,7 @@ def create_app():
             "redirect_uri_en_codigo": client_config["web"]["redirect_uris"][0] if client_config else "(sin config)",
             "token_guardado": bool(drive_backup.get_credentials_from_db()),
             "conectado": drive_backup.is_connected(),
+            "last_error": drive_backup.get_last_drive_error(),
         }
         return render_template("drive_diagnostico.html", info=info)
 

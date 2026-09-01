@@ -95,6 +95,45 @@ def save_credentials_to_db(credentials):
         return False
 
 
+def record_drive_error(message):
+    """Guarda el último error del flujo OAuth para mostrarlo en el diagnóstico."""
+    try:
+        from models import db, AppSetting
+        row = AppSetting.query.filter_by(key="drive_last_error").first()
+        if row:
+            row.value = message
+        else:
+            db.session.add(AppSetting(key="drive_last_error", value=message))
+        db.session.commit()
+    except Exception:
+        pass
+    # También guardar en un archivo por si la BD falla
+    try:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(base_dir, "drive_last_error.txt"), "w", encoding="utf-8") as f:
+            f.write(message)
+    except Exception:
+        pass
+
+
+def get_last_drive_error():
+    """Devuelve el último error del flujo OAuth (o None si no hay)."""
+    try:
+        from models import db, AppSetting
+        row = AppSetting.query.filter_by(key="drive_last_error").first()
+        if row and row.value:
+            return row.value
+    except Exception:
+        pass
+    try:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(base_dir, "drive_last_error.txt"), "r", encoding="utf-8") as f:
+            return f.read().strip()
+    except Exception:
+        pass
+    return None
+
+
 def is_connected():
     """True si hay un token válido guardado."""
     creds = get_credentials_from_db()
