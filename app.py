@@ -1606,6 +1606,9 @@ def create_app():
         )
         drive_backup.record_drive_error("")
         session["drive_oauth_state"] = state
+        # PKCE: guardar el code_verifier para que el callback pueda completar
+        # el intercambio del código (Google lo exige para validar la solicitud).
+        session["drive_oauth_code_verifier"] = flow.code_verifier
         return redirect(authorization_url)
 
     @app.route("/drive/callback")
@@ -1630,6 +1633,9 @@ def create_app():
             drive_backup.record_drive_error("Google Drive no está configurado (faltan GOOGLE_DRIVE_CLIENT_ID/SECRET).")
             flash("Google Drive no está configurado.", "error")
             return redirect(url_for("backup"))
+        # PKCE: restaurar el code_verifier guardado en /drive/auth. Sin esto,
+        # Google rechaza el intercambio del código (invalid_grant).
+        flow.code_verifier = session.get("drive_oauth_code_verifier")
         try:
             flow.fetch_token(authorization_response=request.url)
             credentials = flow.credentials
@@ -1647,6 +1653,7 @@ def create_app():
             logger.error(f"Error en callback de Drive: {e}")
             flash(f"Error conectando con Google Drive: {e}", "error")
         session.pop("drive_oauth_state", None)
+        session.pop("drive_oauth_code_verifier", None)
         return redirect(url_for("backup"))
 
     @app.route("/drive/disconnect", methods=["POST"])
