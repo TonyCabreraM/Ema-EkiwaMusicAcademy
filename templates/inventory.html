@@ -245,7 +245,7 @@
         <tbody>
             {% for product, units in stats.top_sold %}
             <tr>
-                <td><strong>{{ product.name if product else '—' }}</strong></td>
+                <td><span class="clamp-2"><strong>{{ product.name if product else '—' }}</strong></span></td>
                 <td>{{ units }}</td>
                 <td>${{ "%.2f"|format(units * (product.price if product else 0)) }}</td>
             </tr>
@@ -273,7 +273,7 @@
             {% for m in stats.recent_movements %}
             <tr>
                 <td style="white-space: nowrap;">{{ m.created_at.strftime('%d/%m/%Y %H:%M') if m.created_at else '—' }}</td>
-                <td><strong>{{ m.product.name if m.product else '—' }}</strong></td>
+                <td><span class="clamp-2"><strong>{{ m.product.name if m.product else '—' }}</strong></span></td>
                 <td>
                     {% if m.movement_type == 'sale' %}
                     <span style="color: var(--danger);">💸 Venta</span>
@@ -288,7 +288,7 @@
                 <td style="font-weight: bold; {% if m.change < 0 %}color: var(--danger);{% elif m.change > 0 %}color: var(--success);{% endif %}">
                     {% if m.change > 0 %}+{% endif %}{{ m.change }}
                 </td>
-                <td style="max-width: 250px; white-space: normal; word-wrap: break-word;">{{ m.note or '—' }}</td>
+                <td><span class="clamp-2">{{ m.note or '—' }}</span></td>
             </tr>
             {% endfor %}
         </tbody>

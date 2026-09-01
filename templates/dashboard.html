@@ -71,7 +71,7 @@
             {% for card in cards %}
             <tr>
                 <td><code>{{ card.code[:8] }}...</code></td>
-                <td><strong>{{ card.client_name }}</strong></td>
+                <td><span class="clamp-2"><strong>{{ card.client_name }}</strong></span></td>
                 <td>{{ card.phone or '—' }}</td>
                 <td style="color: var(--green); font-weight: 600; white-space: nowrap;">${{ "%.2f"|format(card.balance) }}</td>
                 <td style="white-space: nowrap;">{{ card.created_at.strftime('%d/%m/%Y %H:%M') }}</td>

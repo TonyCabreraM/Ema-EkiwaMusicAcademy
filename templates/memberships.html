@@ -96,7 +96,7 @@
     <tbody>
         {% for m in memberships %}
         <tr>
-            <td><strong>{{ m.name }}</strong></td>
+            <td><span class="clamp-2"><strong>{{ m.name }}</strong></span></td>
             <td>${{ "%.2f"|format(m.price) }}</td>
             <td>{% if m.is_default %}<span class="badge badge-green">⭐ Sí</span>{% else %}<span class="muted">No</span>{% endif %}</td>
             <td>

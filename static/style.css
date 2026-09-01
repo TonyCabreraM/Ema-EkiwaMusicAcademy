@@ -57,11 +57,33 @@ body::before { content: ''; position: fixed; top: 0; left: 0; width: 100%; heigh
 .table th { background: #362820; font-weight: 600; text-transform: uppercase; }
 .table tbody tr:hover { background: #362820; }
 /* Tabla responsive con scroll horizontal en móvil */
-.table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
 /* En desktop, las tablas NO deben tener min-width forzado ni scroll horizontal */
 @media (min-width: 769px) {
     .table { width: 100%; table-layout: auto; }
     .table th, .table td { white-space: normal; word-wrap: break-word; }
+}
+
+/* ===== Contenedores de pestañas: evitar desbordes laterales ===== */
+#tab-products, #tab-add, #tab-stats {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+}
+#tab-stats .table-responsive {
+    max-width: 100%;
+}
+
+/* ===== Texto en tablas limitado a 2 líneas con puntos suspensivos ===== */
+.table td .clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: normal;
+    word-wrap: break-word;
+    max-width: 250px;
 }
 .badge { padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
 .badge-green { background: rgba(124, 179, 66, 0.2); color: #7CB342; }
