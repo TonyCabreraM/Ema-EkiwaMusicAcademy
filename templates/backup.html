@@ -50,12 +50,14 @@
                 <p class="muted" style="margin-top: 6px;">Pulsa el botón para autorizar el acceso a tu Google Drive. Se abrirá una ventana de Google donde deberás iniciar sesión y aceptar los permisos.</p>
             </div>
             <a href="{{ url_for('drive_auth') }}" class="btn btn-primary" style="margin-top: 12px;">🔗 Conectar con Google Drive</a>
+            <p class="muted" style="margin-top: 10px;">¿No se conecta? Revisa el <a href="{{ url_for('drive_diagnostico') }}">🔍 diagnóstico de Google Drive</a> para ver la URI de redirección exacta que debes registrar en Google Cloud.</p>
         {% endif %}
     {% else %}
         <div style="padding: 12px; border-radius: 8px; background: rgba(220,53,69,0.12); border: 1px solid rgba(220,53,69,0.4); margin: 12px 0;">
             <strong style="color: #dc3545;">❌ No configurado</strong>
             <p class="muted" style="margin-top: 6px;">Faltan las variables de entorno <code>GOOGLE_DRIVE_CLIENT_ID</code> y <code>GOOGLE_DRIVE_CLIENT_SECRET</code>. Configúralas en Render para poder conectar Google Drive.</p>
         </div>
+        <p class="muted" style="margin-top: 10px;">Revisa el <a href="{{ url_for('drive_diagnostico') }}">🔍 diagnóstico de Google Drive</a> para ver qué falta.</p>
     {% endif %}
 </div>
 

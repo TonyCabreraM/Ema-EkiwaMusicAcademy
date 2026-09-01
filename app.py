@@ -1595,7 +1595,7 @@ def create_app():
         if not drive_backup.is_configured():
             flash("Google Drive no está configurado. Faltan GOOGLE_DRIVE_CLIENT_ID y GOOGLE_DRIVE_CLIENT_SECRET en las variables de entorno.", "error")
             return redirect(url_for("backup"))
-        flow = drive_backup.build_flow()
+        flow = drive_backup.build_flow(base_url=get_public_base_url())
         if not flow:
             flash("No se pudo iniciar la conexión con Google Drive.", "error")
             return redirect(url_for("backup"))
@@ -1618,7 +1618,7 @@ def create_app():
         if not state or request.args.get("state") != state:
             flash("Error de seguridad en la conexión con Google Drive. Intenta de nuevo.", "error")
             return redirect(url_for("backup"))
-        flow = drive_backup.build_flow()
+        flow = drive_backup.build_flow(base_url=get_public_base_url())
         if not flow:
             flash("Google Drive no está configurado.", "error")
             return redirect(url_for("backup"))
@@ -1675,6 +1675,27 @@ def create_app():
         else:
             flash(f"❌ {msg}", "error")
         return redirect(url_for("backup"))
+
+    @app.route("/drive/diagnostico")
+    def drive_diagnostico():
+        """Muestra el estado de configuración de Google Drive para depurar."""
+        if not session.get("admin_id"): return redirect(url_for("login"))
+        if not session.get("is_superuser"):
+            flash("Solo el superusuario puede ver el diagnóstico", "error")
+            return redirect(url_for("backup"))
+        client_config = drive_backup.get_client_config()
+        redirect_uri = drive_backup.get_redirect_uri(base_url=get_public_base_url())
+        info = {
+            "client_id_configurado": bool(os.environ.get("GOOGLE_DRIVE_CLIENT_ID")),
+            "client_secret_configurado": bool(os.environ.get("GOOGLE_DRIVE_CLIENT_SECRET")),
+            "client_id": (os.environ.get("GOOGLE_DRIVE_CLIENT_ID", "")[:20] + "...") if os.environ.get("GOOGLE_DRIVE_CLIENT_ID") else "(vacío)",
+            "public_base_url": get_public_base_url(),
+            "redirect_uri_que_debe_registrarse": redirect_uri,
+            "redirect_uri_en_codigo": client_config["web"]["redirect_uris"][0] if client_config else "(sin config)",
+            "token_guardado": bool(drive_backup.get_credentials_from_db()),
+            "conectado": drive_backup.is_connected(),
+        }
+        return render_template("drive_diagnostico.html", info=info)
 
     # ===== BACKUP (solo superusuarios) =====
     @app.route("/backup")

@@ -109,16 +109,27 @@ def is_connected():
         return False
 
 
-def build_flow():
-    """Construye el flujo OAuth para iniciar la autorización."""
+def build_flow(base_url=None):
+    """Construye el flujo OAuth para iniciar la autorización.
+    base_url: URL pública de la app (ej. https://jubiloqrv2.onrender.com).
+              Si no se pasa, usa PUBLIC_BASE_URL o localhost."""
     client_config = get_client_config()
     if not client_config:
         return None
     flow = Flow.from_client_config(client_config, scopes=SCOPES)
     # En Render la URL pública es https://...; en local es http://localhost:5000
-    public_url = os.environ.get("PUBLIC_BASE_URL", "http://localhost:5000").rstrip("/")
-    flow.redirect_uri = f"{public_url}/drive/callback"
+    if not base_url:
+        base_url = os.environ.get("PUBLIC_BASE_URL", "http://localhost:5000")
+    base_url = base_url.rstrip("/")
+    flow.redirect_uri = f"{base_url}/drive/callback"
     return flow
+
+
+def get_redirect_uri(base_url=None):
+    """Devuelve la URI de redirección exacta que debe registrarse en Google Cloud."""
+    if not base_url:
+        base_url = os.environ.get("PUBLIC_BASE_URL", "http://localhost:5000")
+    return f"{base_url.rstrip('/')}/drive/callback"
 
 
 def get_drive_service():
