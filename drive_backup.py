@@ -35,6 +35,9 @@ SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 # Nombre de la carpeta raíz donde se guardan los respaldos en Drive.
 DRIVE_ROOT_FOLDER = "JubiloBackups"
 
+# Subcarpeta dentro de la raíz donde se guardan los respaldos de la base de datos.
+DRIVE_DB_SUBFOLDER = "JubiloQrDataBase"
+
 
 def get_client_config():
     """Devuelve la configuración del cliente OAuth desde variables de entorno."""
@@ -204,6 +207,23 @@ def get_or_create_root_folder(service):
     return folder["id"]
 
 
+def get_or_create_subfolder(service, parent_folder_id, subfolder_name):
+    """Busca (o crea) una subcarpeta dentro de la carpeta raíz de respaldos."""
+    query = (f"name='{subfolder_name}' and '{parent_folder_id}' in parents "
+             f"and mimeType='application/vnd.google-apps.folder' and trashed=false")
+    results = service.files().list(q=query, fields="files(id, name)", pageSize=10).execute()
+    files = results.get("files", [])
+    if files:
+        return files[0]["id"]
+    file_metadata = {
+        "name": subfolder_name,
+        "mimeType": "application/vnd.google-apps.folder",
+        "parents": [parent_folder_id],
+    }
+    folder = service.files().create(body=file_metadata, fields="id").execute()
+    return folder["id"]
+
+
 def upload_file(service, folder_id, filename, content_bytes, mime_type="application/json"):
     """Sube un archivo a la carpeta de Drive. Si ya existe con el mismo nombre, lo reemplaza."""
     # Buscar si ya existe un archivo con el mismo nombre en la carpeta
@@ -228,11 +248,13 @@ def upload_file(service, folder_id, filename, content_bytes, mime_type="applicat
         return file["id"], "created"
 
 
-def upload_backup_to_drive(backup_data, filename=None):
+def upload_backup_to_drive(backup_data, filename=None, subfolder=None):
     """
     Sube un respaldo JSON a Google Drive.
     backup_data: dict con los datos del respaldo (o bytes).
     filename: nombre del archivo. Si es None, se genera automáticamente.
+    subfolder: nombre de la subcarpeta dentro de la raíz donde subir
+               (ej. "JubiloQrDataBase"). Si es None, sube a la raíz.
     Devuelve (success: bool, message: str).
     """
     if not is_configured():
@@ -246,6 +268,8 @@ def upload_backup_to_drive(backup_data, filename=None):
             return False, "No se pudo autenticar con Google Drive."
 
         folder_id = get_or_create_root_folder(service)
+        if subfolder:
+            folder_id = get_or_create_subfolder(service, folder_id, subfolder)
 
         if isinstance(backup_data, dict):
             content = json.dumps(backup_data, indent=2, ensure_ascii=False).encode("utf-8")
@@ -310,6 +334,7 @@ def upload_postgres_dump():
     try:
         service = get_drive_service()
         folder_id = get_or_create_root_folder(service)
+        folder_id = get_or_create_subfolder(service, folder_id, DRIVE_DB_SUBFOLDER)
         file_id, action = upload_file(service, folder_id, filename, content, mime_type="application/sql")
         return True, f"Dump de PostgreSQL subido a Drive ({action}): {filename}"
     except Exception as e:

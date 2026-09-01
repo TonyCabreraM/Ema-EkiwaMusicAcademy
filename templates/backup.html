@@ -33,7 +33,7 @@
         {% if drive_status.connected %}
             <div style="padding: 12px; border-radius: 8px; background: rgba(40,167,69,0.12); border: 1px solid rgba(40,167,69,0.4); margin: 12px 0;">
                 <strong style="color: #28a745;">✅ Conectado a Google Drive</strong>
-                <p class="muted" style="margin-top: 6px;">Los respaldos se suben automáticamente a la carpeta <code>JubiloBackups</code> de tu Drive después de cada cambio.</p>
+                <p class="muted" style="margin-top: 6px;">Los respaldos se suben automáticamente a la carpeta <code>JubiloBackups/JubiloQrDataBase</code> de tu Drive después de cada cambio.</p>
             </div>
             <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px;">
                 <form method="POST" action="{{ url_for('drive_test') }}" style="margin: 0;">

@@ -207,7 +207,9 @@ def create_app():
                 data = collect_backup_data()
                 # Nombre por día: se actualiza con cada cambio del día
                 filename = f"backup_{datetime.utcnow().strftime('%Y%m%d')}.json"
-                success, msg = drive_backup.upload_backup_to_drive(data, filename=filename)
+                success, msg = drive_backup.upload_backup_to_drive(
+                    data, filename=filename, subfolder=drive_backup.DRIVE_DB_SUBFOLDER
+                )
                 if success:
                     logger.info(f"[Drive] {msg}")
                 else:
