@@ -63,12 +63,38 @@ def is_configured():
 
 
 def get_credentials_from_db():
-    """Lee el token OAuth guardado en la base de datos (tabla app_settings)."""
+    """Obtiene las credenciales de Drive.
+    Prioridad: variable de entorno GOOGLE_DRIVE_TOKEN (persiste entre reinicios
+    en Render) y luego la base de datos (tabla app_settings)."""
+    # 1) Variable de entorno (persistente en Render, no se pierde al reiniciar)
+    token_json = os.environ.get("GOOGLE_DRIVE_TOKEN", "")
+    if token_json:
+        try:
+            return Credentials.from_authorized_user_info(json.loads(token_json), SCOPES)
+        except Exception as e:
+            print(f"[Drive] Error leyendo GOOGLE_DRIVE_TOKEN: {e}")
+    # 2) Base de datos
     try:
         from models import db, AppSetting
         row = AppSetting.query.filter_by(key="drive_token").first()
         if row and row.value:
             return Credentials.from_authorized_user_info(json.loads(row.value), SCOPES)
+    except Exception:
+        pass
+    return None
+
+
+def get_token_json():
+    """Devuelve el JSON del token actual para exportarlo a GOOGLE_DRIVE_TOKEN.
+    Prioridad: variable de entorno, luego base de datos."""
+    token_json = os.environ.get("GOOGLE_DRIVE_TOKEN", "")
+    if token_json:
+        return token_json
+    try:
+        from models import db, AppSetting
+        row = AppSetting.query.filter_by(key="drive_token").first()
+        if row and row.value:
+            return row.value
     except Exception:
         pass
     return None

@@ -1881,6 +1881,16 @@ def create_app():
             flash(f"❌ {msg}", "error")
         return redirect(url_for("backup"))
 
+    @app.route("/drive/token")
+    def drive_token():
+        """Muestra el token OAuth actual para copiarlo a GOOGLE_DRIVE_TOKEN en Render."""
+        if not session.get("admin_id"): return redirect(url_for("login"))
+        if not session.get("is_superuser"):
+            flash("Solo el superusuario puede ver el token", "error")
+            return redirect(url_for("backup"))
+        token_json = drive_backup.get_token_json()
+        return render_template("drive_token.html", token_json=token_json)
+
     @app.route("/drive/diagnostico")
     def drive_diagnostico():
         """Muestra el estado de configuración de Google Drive para depurar."""
@@ -1898,6 +1908,7 @@ def create_app():
             "redirect_uri_que_debe_registrarse": redirect_uri,
             "redirect_uri_en_codigo": client_config["web"]["redirect_uris"][0] if client_config else "(sin config)",
             "token_guardado": bool(drive_backup.get_credentials_from_db()),
+            "token_env_configurado": bool(os.environ.get("GOOGLE_DRIVE_TOKEN")),
             "conectado": drive_backup.is_connected(),
             "last_error": drive_backup.get_last_drive_error(),
         }

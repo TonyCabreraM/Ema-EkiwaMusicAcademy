@@ -62,6 +62,16 @@
                         </td>
                     </tr>
                     <tr>
+                        <th>Token en variable de entorno (GOOGLE_DRIVE_TOKEN)</th>
+                        <td>
+                            {% if info.token_env_configurado %}
+                                <span class="badge bg-success">✅ Sí</span>
+                            {% else %}
+                                <span class="badge bg-warning">⚠️ No</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
                         <th>Conectado</th>
                         <td>
                             {% if info.conectado %}

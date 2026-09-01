@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>🔑 Token de Google Drive</h2>
+        <a href="{{ url_for('backup') }}" class="btn btn-secondary">← Volver a Respaldos</a>
+    </div>
+
+    {% if token_json %}
+    <div class="card mb-4">
+        <div class="card-header bg-info text-white">Token OAuth (cópialo completo)</div>
+        <div class="card-body">
+            <p>Este token permite que la app se conecte a tu Google Drive <strong>sin depender de PostgreSQL de Render</strong>. Cópialo y pégalo en la variable de entorno <code>GOOGLE_DRIVE_TOKEN</code> de Render para que la conexión sobreviva a los reinicios.</p>
+            <textarea id="tokenTextarea" class="form-control" rows="10" readonly style="font-family: monospace; font-size: 0.85rem; word-break: break-all;">{{ token_json }}</textarea>
+            <button class="btn btn-primary mt-3" onclick="copiarToken()">📋 Copiar token</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header bg-light">📋 Cómo configurarlo en Render</div>
+        <div class="card-body">
+            <ol>
+                <li>Copia el token completo con el botón de arriba.</li>
+                <li>Ve a <strong>Render → tu servicio → Environment</strong>.</li>
+                <li>Agrega una variable llamada <code>GOOGLE_DRIVE_TOKEN</code> y pega el token como valor.</li>
+                <li>Guarda. Render se redesplegará automáticamente.</li>
+                <li>A partir de ahora, aunque la base de datos se reinicie, la app podrá conectarse a Drive y restaurar el último respaldo automáticamente.</li>
+            </ol>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-warning">
+        ⚠️ No hay token guardado. Primero pulsa <strong>"Conectar con Google Drive"</strong> en la página de Respaldos.
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function copiarToken() {
+    var ta = document.getElementById('tokenTextarea');
+    ta.select();
+    ta.setSelectionRange(0, 99999);
+    document.execCommand('copy');
+    alert('✅ Token copiado al portapapeles');
+}
+</script>
+{% endblock %}
