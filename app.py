@@ -6,7 +6,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from models import db, Admin, Card, Transaction, Notification, PushSubscription, MembershipType, Product, ProductMovement, AppSetting, PurchaseRequest, generate_unique_code, init_db
 from utils import get_logger, generate_qr_image, generate_deep_link, sanitize_input, generate_whatsapp_image
 import drive_backup
-import stripe
+import requests as http_requests  # HTTP para PayPal API
 from dotenv import load_dotenv
 
 # -- OneSignal config --
@@ -19,13 +19,13 @@ ONESIGNAL_REST_API_KEY = os.environ.get("ONESIGNAL_REST_API_KEY", "")
 ONESIGNAL_SAFARI_WEB_ID = os.environ.get("ONESIGNAL_SAFARI_WEB_ID", "")
 HAS_ONESIGNAL = bool(ONESIGNAL_APP_ID and ONESIGNAL_REST_API_KEY)
 
-# -- Stripe (pagos en línea) --
-STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
-STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
-STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
-STRIPE_CURRENCY = os.environ.get("STRIPE_CURRENCY", "mxn")
-if STRIPE_SECRET_KEY:
-    stripe.api_key = STRIPE_SECRET_KEY
+# -- PayPal (pagos en línea) --
+PAYPAL_CLIENT_ID = os.environ.get("PAYPAL_CLIENT_ID", "")
+PAYPAL_CLIENT_SECRET = os.environ.get("PAYPAL_CLIENT_SECRET", "")
+PAYPAL_MODE = os.environ.get("PAYPAL_MODE", "live")  # 'live' o 'sandbox'
+PAYPAL_BASE = "https://api-m.paypal.com" if PAYPAL_MODE == "live" else "https://api-m.sandbox.paypal.com"
+PAYPAL_CURRENCY = os.environ.get("PAYPAL_CURRENCY", "MXN")
+HAS_PAYPAL = bool(PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET)
 
 def create_app():
     app = Flask(__name__)
@@ -1634,6 +1634,8 @@ def create_app():
         """Eliminar un producto del inventario."""
         if not session.get("admin_id"): return redirect(url_for("login"))
         product = Product.query.filter_by(id=product_id).first_or_404()
+        # Primero eliminar movimientos asociados para evitar error de clave foránea
+        ProductMovement.query.filter_by(product_id=product.id).delete()
         db.session.delete(product)
         db.session.commit()
         upload_backup_to_drive_after_change()
@@ -1776,6 +1778,10 @@ def create_app():
     @app.errorhandler(404)
     def not_found(e):
         return render_template("404.html"), 404
+
+    @app.errorhandler(500)
+    def server_error(e):
+        return render_template("500.html"), 500
 
     # ===== GOOGLE DRIVE (respaldo en la nube) =====
     @app.route("/drive/auth")
@@ -1923,7 +1929,27 @@ def create_app():
         }
         return render_template("drive_diagnostico.html", info=info)
 
-    # ===== COMPRA DE MEMBRESÍAS EN LÍNEA (Stripe) =====
+    # ===== COMPRA DE MEMBRESÍAS EN LÍNEA (PayPal) =====
+    def paypal_get_access_token():
+        """Obtiene el token de acceso OAuth2 de PayPal."""
+        if not HAS_PAYPAL:
+            return None
+        try:
+            resp = http_requests.post(
+                f"{PAYPAL_BASE}/v1/oauth2/token",
+                auth=(PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET),
+                data={"grant_type": "client_credentials"},
+                headers={"Accept": "application/json", "Accept-Language": "en_US"},
+                timeout=30,
+            )
+            if resp.status_code == 200:
+                return resp.json().get("access_token")
+            logger.error(f"PayPal token error {resp.status_code}: {resp.text}")
+            return None
+        except Exception as e:
+            logger.error(f"PayPal token exception: {e}")
+            return None
+
     def create_card_from_purchase(purchase):
         """Crea la tarjeta con QR único cuando se aprueba el pago de una membresía."""
         code = generate_unique_code()
@@ -1951,11 +1977,11 @@ def create_app():
     def comprar():
         """Página pública para comprar membresías."""
         plans = MembershipType.query.filter_by(is_active=True).order_by(MembershipType.price.asc()).all()
-        return render_template("comprar.html", plans=plans, stripe_configured=bool(STRIPE_SECRET_KEY))
+        return render_template("comprar.html", plans=plans, paypal_configured=HAS_PAYPAL)
 
     @app.route("/comprar", methods=["POST"])
     def comprar_submit():
-        """Crea la solicitud de compra y redirige a Stripe Checkout."""
+        """Crea la solicitud de compra y redirige a PayPal Checkout."""
         client_name = sanitize_input(request.form.get("client_name", ""))
         phone = sanitize_input(request.form.get("phone", ""))
         membership_type_id = request.form.get("membership_type_id")
@@ -1966,7 +1992,7 @@ def create_app():
         if not membership or not membership.is_active:
             flash("Plan no válido", "error")
             return redirect(url_for("comprar"))
-        if not STRIPE_SECRET_KEY:
+        if not HAS_PAYPAL:
             flash("El pago en línea aún no está configurado.", "error")
             return redirect(url_for("comprar"))
 
@@ -1980,65 +2006,127 @@ def create_app():
         db.session.add(purchase)
         db.session.commit()
 
+        access_token = paypal_get_access_token()
+        if not access_token:
+            flash("Error al iniciar el pago. Intenta de nuevo.", "error")
+            return redirect(url_for("comprar"))
+
         try:
-            checkout = stripe.checkout.Session.create(
-                payment_method_types=["card"],
-                line_items=[{
-                    "price_data": {
-                        "currency": STRIPE_CURRENCY,
-                        "product_data": {"name": f"Membresía {membership.name}"},
-                        "unit_amount": int(round(membership.price * 100)),
+            # Crear la orden de pago en PayPal
+            order_payload = {
+                "intent": "CAPTURE",
+                "purchase_units": [{
+                    "reference_id": str(purchase.id),
+                    "description": f"Membresía {membership.name}",
+                    "amount": {
+                        "currency_code": PAYPAL_CURRENCY,
+                        "value": f"{membership.price:.2f}",
                     },
-                    "quantity": 1,
                 }],
-                mode="payment",
-                success_url=f"{get_public_base_url()}/comprar/confirmacion?session_id={{CHECKOUT_SESSION_ID}}",
-                cancel_url=f"{get_public_base_url()}/comprar?cancelado=1",
-                client_reference_id=str(purchase.id),
-                metadata={"purchase_id": str(purchase.id), "phone": phone, "client_name": client_name},
+                "application_context": {
+                    "brand_name": "Júbilo",
+                    "user_action": "PAY_NOW",
+                    "return_url": f"{get_public_base_url()}/comprar/confirmacion?purchase_id={purchase.id}",
+                    "cancel_url": f"{get_public_base_url()}/comprar?cancelado=1",
+                },
+            }
+            resp = http_requests.post(
+                f"{PAYPAL_BASE}/v2/checkout/orders",
+                json=order_payload,
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json",
+                },
+                timeout=30,
             )
-            purchase.stripe_session_id = checkout.id
+            if resp.status_code not in (200, 201):
+                logger.error(f"PayPal order error {resp.status_code}: {resp.text}")
+                flash("Error al iniciar el pago. Intenta de nuevo.", "error")
+                return redirect(url_for("comprar"))
+            order = resp.json()
+            purchase.stripe_session_id = order["id"]  # reutilizamos el campo para el id de la orden PayPal
             db.session.commit()
-            return redirect(checkout.url)
+            # Buscar el link de aprobación
+            approve_url = next((l["href"] for l in order.get("links", []) if l.get("rel") == "approve"), None)
+            if not approve_url:
+                flash("Error al iniciar el pago. Intenta de nuevo.", "error")
+                return redirect(url_for("comprar"))
+            return redirect(approve_url)
         except Exception as e:
-            logger.error(f"Error creando sesión Stripe: {e}")
+            logger.error(f"Error creando orden PayPal: {e}")
             flash("Error al iniciar el pago. Intenta de nuevo.", "error")
             return redirect(url_for("comprar"))
 
     @app.route("/comprar/confirmacion")
     def comprar_confirmacion():
-        """Stripe redirige aquí tras el pago. Verifica y crea la tarjeta."""
-        session_id = request.args.get("session_id")
-        if not session_id:
+        """PayPal redirige aquí tras aprobar el pago. Captura la orden y crea la tarjeta."""
+        purchase_id = request.args.get("purchase_id")
+        token = request.args.get("token")  # id de la orden PayPal
+        if not purchase_id:
+            return redirect(url_for("comprar"))
+        purchase = PurchaseRequest.query.get(purchase_id)
+        if not purchase:
+            return redirect(url_for("comprar"))
+        if purchase.status == "paid":
+            return redirect(url_for("comprar_estado", phone=purchase.phone))
+        if not token:
+            flash("No se pudo confirmar el pago.", "error")
+            return redirect(url_for("comprar"))
+
+        access_token = paypal_get_access_token()
+        if not access_token:
+            flash("Error al confirmar el pago. Intenta de nuevo.", "error")
             return redirect(url_for("comprar"))
         try:
-            checkout = stripe.checkout.Session.retrieve(session_id)
-            purchase = PurchaseRequest.query.filter_by(stripe_session_id=session_id).first()
-            if checkout.payment_status == "paid" and purchase and purchase.status != "paid":
-                create_card_from_purchase(purchase)
-            return redirect(url_for("comprar_estado", phone=purchase.phone if purchase else ""))
+            # Capturar la orden aprobada
+            resp = http_requests.post(
+                f"{PAYPAL_BASE}/v2/checkout/orders/{token}/capture",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json",
+                },
+                timeout=30,
+            )
+            if resp.status_code in (200, 201):
+                result = resp.json()
+                if result.get("status") == "COMPLETED" and purchase.status != "paid":
+                    create_card_from_purchase(purchase)
+                return redirect(url_for("comprar_estado", phone=purchase.phone))
+            logger.error(f"PayPal capture error {resp.status_code}: {resp.text}")
+            flash("El pago no se pudo completar. Intenta de nuevo.", "error")
+            return redirect(url_for("comprar"))
         except Exception as e:
-            logger.error(f"Error confirmando pago: {e}")
+            logger.error(f"Error capturando orden PayPal: {e}")
+            flash("Error al confirmar el pago. Intenta de nuevo.", "error")
             return redirect(url_for("comprar"))
 
     @app.route("/comprar/webhook", methods=["POST"])
     def comprar_webhook():
-        """Webhook de Stripe (confirmación fiable del pago)."""
-        payload = request.get_data()
-        sig_header = request.headers.get("Stripe-Signature")
-        if not STRIPE_WEBHOOK_SECRET:
-            return "webhook no configurado", 400
+        """Webhook de PayPal (confirmación fiable del pago)."""
+        # PayPal envía el evento; verificamos el id de la orden en el body
         try:
-            event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
-        except ValueError:
+            data = request.get_json(force=True)
+        except Exception:
             return "invalid payload", 400
-        except stripe.error.SignatureVerificationError:
-            return "invalid signature", 400
-        if event["type"] == "checkout.session.completed":
-            session_obj = event["data"]["object"]
-            purchase = PurchaseRequest.query.filter_by(stripe_session_id=session_obj["id"]).first()
+        event_type = data.get("event_type", "")
+        if event_type == "CHECKOUT.ORDER.APPROVED":
+            resource = data.get("resource", {})
+            order_id = resource.get("id")
+            purchase = PurchaseRequest.query.filter_by(stripe_session_id=order_id).first()
             if purchase and purchase.status != "paid":
-                create_card_from_purchase(purchase)
+                # Intentar capturar la orden
+                access_token = paypal_get_access_token()
+                if access_token:
+                    try:
+                        resp = http_requests.post(
+                            f"{PAYPAL_BASE}/v2/checkout/orders/{order_id}/capture",
+                            headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"},
+                            timeout=30,
+                        )
+                        if resp.status_code in (200, 201) and resp.json().get("status") == "COMPLETED":
+                            create_card_from_purchase(purchase)
+                    except Exception as e:
+                        logger.error(f"PayPal webhook capture error: {e}")
         return "ok", 200
 
     @app.route("/comprar/estado", methods=["GET", "POST"])
