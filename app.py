@@ -208,7 +208,15 @@ def create_app():
         Se llama después de cada cambio importante de datos.
         Usa un nombre de archivo por día (se reemplaza con cada cambio del día)
         para mantener un historial diario limpio en Drive.
-        No lanza excepciones: solo registra en el log."""
+        No lanza excepciones: solo registra en el log.
+
+        ⚠️ DESACTIVADO: el respaldo automático a Google Drive está deshabilitado
+        por decisión del usuario (solo hará respaldos manuales). El código se
+        conserva intacto por si se quiere reactivar en el futuro.
+        """
+        # DESACTIVADO: no subir nada a Google Drive automáticamente.
+        return
+        # --- Código original (conservado, sin ejecutar) ---
         try:
             if not drive_backup.is_configured() or not drive_backup.is_connected():
                 return
@@ -414,7 +422,9 @@ def create_app():
         except Exception as e:
             logger.error(f"[Drive] Error en restauración automática: {e}")
 
-    restore_latest_backup_from_drive()
+    # ⚠️ DESACTIVADO: la restauración automática desde Google Drive está
+    # deshabilitada (solo respaldos manuales). El código se conserva intacto.
+    # restore_latest_backup_from_drive()
 
     @app.context_processor
     def inject_push_config():
@@ -1973,12 +1983,6 @@ def create_app():
         upload_backup_to_drive_after_change()
         return card
 
-    @app.route("/comprar")
-    def comprar():
-        """Página pública para comprar membresías."""
-        plans = MembershipType.query.filter_by(is_active=True).order_by(MembershipType.price.asc()).all()
-        return render_template("comprar.html", plans=plans, paypal_configured=HAS_PAYPAL)
-
     @app.route("/comprar", methods=["POST"])
     def comprar_submit():
         """Crea la solicitud de compra y redirige a PayPal Checkout."""
@@ -1987,14 +1991,14 @@ def create_app():
         membership_type_id = request.form.get("membership_type_id")
         if not client_name or not phone or not membership_type_id:
             flash("Completa todos los campos", "error")
-            return redirect(url_for("comprar"))
+            return redirect(url_for("planes"))
         membership = MembershipType.query.get(membership_type_id)
         if not membership or not membership.is_active:
             flash("Plan no válido", "error")
-            return redirect(url_for("comprar"))
+            return redirect(url_for("planes"))
         if not HAS_PAYPAL:
             flash("El pago en línea aún no está configurado.", "error")
-            return redirect(url_for("comprar"))
+            return redirect(url_for("planes"))
 
         purchase = PurchaseRequest(
             client_name=client_name,
@@ -2009,7 +2013,7 @@ def create_app():
         access_token = paypal_get_access_token()
         if not access_token:
             flash("Error al iniciar el pago. Intenta de nuevo.", "error")
-            return redirect(url_for("comprar"))
+            return redirect(url_for("planes"))
 
         try:
             # Crear la orden de pago en PayPal
@@ -2027,7 +2031,7 @@ def create_app():
                     "brand_name": "Júbilo",
                     "user_action": "PAY_NOW",
                     "return_url": f"{get_public_base_url()}/comprar/confirmacion?purchase_id={purchase.id}",
-                    "cancel_url": f"{get_public_base_url()}/comprar?cancelado=1",
+                    "cancel_url": f"{get_public_base_url()}/planes?cancelado=1",
                 },
             }
             resp = http_requests.post(
@@ -2042,7 +2046,7 @@ def create_app():
             if resp.status_code not in (200, 201):
                 logger.error(f"PayPal order error {resp.status_code}: {resp.text}")
                 flash("Error al iniciar el pago. Intenta de nuevo.", "error")
-                return redirect(url_for("comprar"))
+                return redirect(url_for("planes"))
             order = resp.json()
             purchase.stripe_session_id = order["id"]  # reutilizamos el campo para el id de la orden PayPal
             db.session.commit()
@@ -2050,12 +2054,12 @@ def create_app():
             approve_url = next((l["href"] for l in order.get("links", []) if l.get("rel") == "approve"), None)
             if not approve_url:
                 flash("Error al iniciar el pago. Intenta de nuevo.", "error")
-                return redirect(url_for("comprar"))
+                return redirect(url_for("planes"))
             return redirect(approve_url)
         except Exception as e:
             logger.error(f"Error creando orden PayPal: {e}")
             flash("Error al iniciar el pago. Intenta de nuevo.", "error")
-            return redirect(url_for("comprar"))
+            return redirect(url_for("planes"))
 
     @app.route("/comprar/confirmacion")
     def comprar_confirmacion():
@@ -2063,20 +2067,20 @@ def create_app():
         purchase_id = request.args.get("purchase_id")
         token = request.args.get("token")  # id de la orden PayPal
         if not purchase_id:
-            return redirect(url_for("comprar"))
+            return redirect(url_for("planes"))
         purchase = PurchaseRequest.query.get(purchase_id)
         if not purchase:
-            return redirect(url_for("comprar"))
+            return redirect(url_for("planes"))
         if purchase.status == "paid":
             return redirect(url_for("comprar_estado", phone=purchase.phone))
         if not token:
             flash("No se pudo confirmar el pago.", "error")
-            return redirect(url_for("comprar"))
+            return redirect(url_for("planes"))
 
         access_token = paypal_get_access_token()
         if not access_token:
             flash("Error al confirmar el pago. Intenta de nuevo.", "error")
-            return redirect(url_for("comprar"))
+            return redirect(url_for("planes"))
         try:
             # Capturar la orden aprobada
             resp = http_requests.post(
@@ -2094,11 +2098,11 @@ def create_app():
                 return redirect(url_for("comprar_estado", phone=purchase.phone))
             logger.error(f"PayPal capture error {resp.status_code}: {resp.text}")
             flash("El pago no se pudo completar. Intenta de nuevo.", "error")
-            return redirect(url_for("comprar"))
+            return redirect(url_for("planes"))
         except Exception as e:
             logger.error(f"Error capturando orden PayPal: {e}")
             flash("Error al confirmar el pago. Intenta de nuevo.", "error")
-            return redirect(url_for("comprar"))
+            return redirect(url_for("planes"))
 
     @app.route("/comprar/webhook", methods=["POST"])
     def comprar_webhook():

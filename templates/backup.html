@@ -24,7 +24,7 @@
     <p class="muted" style="margin-top: 8px;">💡 Los respaldos automáticos en disco son una capa extra de seguridad. Descarga periódicamente el respaldo completo para guardarlo fuera del servidor.</p>
 </div>
 
-<!-- Google Drive -->
+<!-- Google Drive (DESACTIVADO: solo respaldos manuales por decisión del usuario)
 <div class="auth-card" style="max-width: 700px; margin: 20px auto;">
     <h3>☁️ Respaldo en Google Drive</h3>
     <p class="muted">Conecta tu cuenta de Google para que los respaldos se suban <strong>automáticamente a la nube</strong> después de cada cambio (ventas, recargas, altas de productos, etc.). Así tendrás un respaldo seguro fuera del servidor.</p>
@@ -62,6 +62,7 @@
         <p class="muted" style="margin-top: 10px;">Revisa el <a href="{{ url_for('drive_diagnostico') }}">🔍 diagnóstico de Google Drive</a> para ver qué falta.</p>
     {% endif %}
 </div>
+FIN Google Drive (DESACTIVADO) -->
 
 <!-- Importar -->
 <div class="auth-card" style="max-width: 700px; margin: 20px auto;">
