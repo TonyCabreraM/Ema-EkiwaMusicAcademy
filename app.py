@@ -27,6 +27,15 @@ PAYPAL_BASE = "https://api-m.paypal.com" if PAYPAL_MODE == "live" else "https://
 PAYPAL_CURRENCY = os.environ.get("PAYPAL_CURRENCY", "MXN")
 HAS_PAYPAL = bool(PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET)
 
+# Último error de PayPal (para diagnóstico)
+LAST_PAYPAL_ERROR = {"msg": "", "status": None, "body": ""}
+
+def _set_paypal_error(msg, status=None, body=""):
+    """Guarda el último error de PayPal para mostrarlo en el diagnóstico."""
+    LAST_PAYPAL_ERROR["msg"] = msg
+    LAST_PAYPAL_ERROR["status"] = status
+    LAST_PAYPAL_ERROR["body"] = body[:2000] if body else ""
+
 def create_app():
     app = Flask(__name__)
     # Render sirve la app detrs de un proxy/load balancer: ProxyFix hace que
@@ -2041,10 +2050,29 @@ def create_app():
         }
         return render_template("drive_diagnostico.html", info=info)
 
+    @app.route("/paypal/diagnostico")
+    def paypal_diagnostico():
+        """Muestra el estado de configuración de PayPal y el último error."""
+        if not session.get("admin_id"): return redirect(url_for("login"))
+        if not session.get("is_superuser"):
+            flash("Solo el superusuario puede ver el diagnóstico", "error")
+            return redirect(url_for("backup"))
+        info = {
+            "configurado": HAS_PAYPAL,
+            "client_id": (PAYPAL_CLIENT_ID[:15] + "...") if PAYPAL_CLIENT_ID else "(vacío)",
+            "client_secret_configurado": bool(PAYPAL_CLIENT_SECRET),
+            "mode": PAYPAL_MODE,
+            "base_url": PAYPAL_BASE,
+            "currency": PAYPAL_CURRENCY,
+            "last_error": LAST_PAYPAL_ERROR,
+        }
+        return render_template("paypal_diagnostico.html", info=info)
+
     # ===== COMPRA DE MEMBRESÍAS EN LÍNEA (PayPal) =====
     def paypal_get_access_token():
         """Obtiene el token de acceso OAuth2 de PayPal."""
         if not HAS_PAYPAL:
+            _set_paypal_error("PayPal no configurado (faltan PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET)")
             return None
         try:
             resp = http_requests.post(
@@ -2057,9 +2085,11 @@ def create_app():
             if resp.status_code == 200:
                 return resp.json().get("access_token")
             logger.error(f"PayPal token error {resp.status_code}: {resp.text}")
+            _set_paypal_error("Error obteniendo token de PayPal", resp.status_code, resp.text)
             return None
         except Exception as e:
             logger.error(f"PayPal token exception: {e}")
+            _set_paypal_error(f"Excepción obteniendo token: {e}")
             return None
 
     def create_card_from_purchase(purchase):
@@ -2149,6 +2179,7 @@ def create_app():
             )
             if resp.status_code not in (200, 201):
                 logger.error(f"PayPal order error {resp.status_code}: {resp.text}")
+                _set_paypal_error("Error creando orden de pago", resp.status_code, resp.text)
                 purchase.status = "failed"
                 db.session.commit()
                 flash("Error al iniciar el pago. Intenta de nuevo.", "error")
@@ -2159,6 +2190,7 @@ def create_app():
             # Buscar el link de aprobación
             approve_url = next((l["href"] for l in order.get("links", []) if l.get("rel") == "approve"), None)
             if not approve_url:
+                _set_paypal_error("La orden de PayPal no devolvió link de aprobación", 200, str(order)[:2000])
                 purchase.status = "failed"
                 db.session.commit()
                 flash("Error al iniciar el pago. Intenta de nuevo.", "error")
@@ -2166,6 +2198,7 @@ def create_app():
             return redirect(approve_url)
         except Exception as e:
             logger.error(f"Error creando orden PayPal: {e}")
+            _set_paypal_error(f"Excepción creando orden: {e}")
             purchase.status = "failed"
             db.session.commit()
             flash("Error al iniciar el pago. Intenta de nuevo.", "error")

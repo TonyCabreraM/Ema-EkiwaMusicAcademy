@@ -171,6 +171,12 @@
 
 <!-- ============ PESTAÑA 3: ESTADÍSTICAS ============ -->
 <div id="tab-stats" style="display: none;">
+    <!-- Acciones de inventario -->
+    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 10px 0 20px;">
+        <a href="/stats/inventory/download" class="btn btn-info">📦 Descargar Inventario (CSV)</a>
+        <button onclick="confirmarReinicioInventario()" class="btn btn-danger">🔄 Reiniciar Inventario</button>
+    </div>
+
     <!-- Ventas -->
     <h3 style="margin-top: 10px;">💰 Ventas</h3>
     <div class="stats" style="margin-top: 0;">
@@ -447,6 +453,29 @@ function openEditModal(id) {
 
 function closeEditModal() {
     document.getElementById('editModal').style.display = 'none';
+}
+
+// Reiniciar inventario (elimina todos los movimientos de stock)
+function confirmarReinicioInventario() {
+    const confirmar = confirm("⚠️ ¿Estás seguro? Esto eliminará TODOS los movimientos de stock del inventario. Esta acción no se puede deshacer.\n\n¿Continuar?");
+    if (!confirmar) return;
+
+    fetch('/stats/inventory/reset', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.ok) {
+            alert('✅ ' + data.message);
+            location.reload();
+        } else {
+            alert('❌ Error: ' + data.error);
+        }
+    })
+    .catch(e => {
+        alert('❌ Error al comunicarse con el servidor: ' + e.message);
+    });
 }
 </script>
 {% endblock %}
