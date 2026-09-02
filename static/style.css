@@ -41,6 +41,8 @@ body::before { content: ''; position: fixed; top: 0; left: 0; width: 100%; heigh
 .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
 .btn-primary { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); border-color: var(--primary); color: white; }
 .btn-danger { background: linear-gradient(135deg, var(--danger), #8B3A2A); border-color: var(--danger); color: white; }
+.btn-success { background: linear-gradient(135deg, #28a745, #1e7e34); border-color: #28a745; color: white; }
+.btn-info { background: linear-gradient(135deg, #17a2b8, #117a8b); border-color: #17a2b8; color: white; }
 .btn-whatsapp { background: #7CB342; border-color: #7CB342; color: white; }
 .btn-block { width: 100%; } .btn-sm { padding: 0.5rem 1rem; font-size: 0.875rem; }
 .action-buttons { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }

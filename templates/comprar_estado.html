@@ -35,10 +35,17 @@
             <a href="{{ url_for('view_card', code=result.card.code) }}" class="btn btn-primary mt-3">Ver mi tarjeta</a>
         </div>
         {% else %}
+        {% if result.purchase.status == 'failed' %}
+        <div class="alert alert-danger text-center">
+            ❌ Tu pago <strong>no se pudo completar</strong>.<br>
+            <span class="small">Hubo un error al procesar el pago. Intenta de nuevo desde la página de planes.</span>
+        </div>
+        {% else %}
         <div class="alert alert-warning text-center">
             ⏳ Tu pago está <strong>pendiente de confirmación</strong>.<br>
             <span class="small">Si ya pagaste, espera unos minutos y vuelve a consultar.</span>
         </div>
+        {% endif %}
         {% endif %}
     {% elif phone %}
     <div class="alert alert-info text-center">No encontramos ninguna compra con ese teléfono.</div>

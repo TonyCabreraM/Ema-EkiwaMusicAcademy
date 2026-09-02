@@ -24,18 +24,62 @@
     <p class="muted" style="margin-top: 8px;">💡 Los respaldos automáticos en disco son una capa extra de seguridad. Descarga periódicamente el respaldo completo para guardarlo fuera del servidor.</p>
 </div>
 
-<!-- Google Drive (DESACTIVADO: solo respaldos manuales por decisión del usuario)
+<!-- Google Drive -->
 <div class="auth-card" style="max-width: 700px; margin: 20px auto;">
-    <h3>☁️ Respaldo en Google Drive</h3>
-    <p class="muted">Conecta tu cuenta de Google para que los respaldos se suban <strong>automáticamente a la nube</strong> después de cada cambio (ventas, recargas, altas de productos, etc.). Así tendrás un respaldo seguro fuera del servidor.</p>
+    <h3>☁️ Google Drive</h3>
+    <p class="muted">Conecta tu cuenta de Google para guardar respaldos en la nube. Puedes subir respaldos <strong>manualmente</strong> o activar el <strong>backup automático</strong> con el intervalo que elijas.</p>
 
     {% if drive_status and drive_status.configured %}
         {% if drive_status.connected %}
             <div style="padding: 12px; border-radius: 8px; background: rgba(40,167,69,0.12); border: 1px solid rgba(40,167,69,0.4); margin: 12px 0;">
                 <strong style="color: #28a745;">✅ Conectado a Google Drive</strong>
-                <p class="muted" style="margin-top: 6px;">Los respaldos se suben automáticamente a la carpeta <code>JubiloBackups/JubiloQrDataBase</code> de tu Drive después de cada cambio.</p>
+                <p class="muted" style="margin-top: 6px;">Los respaldos se guardan en la carpeta <code>JubiloBackups/JubiloQrDataBase</code> de tu Drive.</p>
                 <p class="muted" style="margin-top: 6px;">🔄 Al iniciar la aplicación, si la base de datos está vacía, se restaura automáticamente el último respaldo de Drive.</p>
             </div>
+
+            <!-- Backup manual -->
+            <div style="margin-top: 15px; padding: 12px; border-radius: 8px; background: rgba(0,123,255,0.08); border: 1px solid rgba(0,123,255,0.3);">
+                <strong style="color: #007bff;">📤 Backup manual</strong>
+                <p class="muted" style="margin-top: 6px;">Sube ahora un respaldo completo a tu Google Drive.</p>
+                <form method="POST" action="{{ url_for('backup_drive_upload') }}" style="margin-top: 10px;">
+                    <button type="submit" class="btn btn-primary">☁️ Subir respaldo a Drive ahora</button>
+                </form>
+            </div>
+
+            <!-- Backup automático -->
+            <div style="margin-top: 15px; padding: 12px; border-radius: 8px; background: rgba(255,193,7,0.08); border: 1px solid rgba(255,193,7,0.3);">
+                <strong style="color: #ffc107;">🤖 Backup automático</strong>
+                <p class="muted" style="margin-top: 6px;">
+                    {% if drive_auto_enabled %}
+                    <span style="color: #28a745;">✅ ACTIVADO</span> — se sube un respaldo cada <strong>{{ drive_auto_interval }} segundos</strong> (tras cada cambio de datos).
+                    {% else %}
+                    <span style="color: #dc3545;">⏸️ DESACTIVADO</span> — solo se suben respaldos manuales.
+                    {% endif %}
+                </p>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; align-items: center;">
+                    <form method="POST" action="{{ url_for('backup_drive_auto_toggle') }}" style="margin: 0;">
+                        <input type="hidden" name="enabled" value="{{ 'false' if drive_auto_enabled else 'true' }}">
+                        <button type="submit" class="btn {{ 'btn-danger' if drive_auto_enabled else 'btn-success' }}">
+                            {{ '⏸️ Desactivar auto' if drive_auto_enabled else '▶️ Activar auto' }}
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ url_for('backup_drive_interval') }}" style="margin: 0; display: flex; gap: 6px; align-items: center;">
+                        <select name="interval" style="padding: 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text);">
+                            <option value="60" {% if drive_auto_interval == 60 %}selected{% endif %}>1 minuto</option>
+                            <option value="300" {% if drive_auto_interval == 300 %}selected{% endif %}>5 minutos</option>
+                            <option value="600" {% if drive_auto_interval == 600 %}selected{% endif %}>10 minutos</option>
+                            <option value="1800" {% if drive_auto_interval == 1800 %}selected{% endif %}>30 minutos</option>
+                            <option value="3600" {% if drive_auto_interval == 3600 %}selected{% endif %}>1 hora</option>
+                            <option value="7200" {% if drive_auto_interval == 7200 %}selected{% endif %}>2 horas</option>
+                            <option value="21600" {% if drive_auto_interval == 21600 %}selected{% endif %}>6 horas</option>
+                            <option value="43200" {% if drive_auto_interval == 43200 %}selected{% endif %}>12 horas</option>
+                            <option value="86400" {% if drive_auto_interval == 86400 %}selected{% endif %}>24 horas</option>
+                        </select>
+                        <button type="submit" class="btn btn-sm">Guardar</button>
+                    </form>
+                </div>
+            </div>
+
             <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px;">
                 <form method="POST" action="{{ url_for('drive_test') }}" style="margin: 0;">
                     <button type="submit" class="btn btn-success">🧪 Probar conexión</button>
@@ -62,7 +106,7 @@
         <p class="muted" style="margin-top: 10px;">Revisa el <a href="{{ url_for('drive_diagnostico') }}">🔍 diagnóstico de Google Drive</a> para ver qué falta.</p>
     {% endif %}
 </div>
-FIN Google Drive (DESACTIVADO) -->
+<!-- FIN Google Drive -->
 
 <!-- Importar -->
 <div class="auth-card" style="max-width: 700px; margin: 20px auto;">

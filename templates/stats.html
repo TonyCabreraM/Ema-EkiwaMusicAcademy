@@ -9,6 +9,8 @@
     <div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
         <a href="/stats/download" class="btn btn-primary">📥 Descargar Excel (CSV)</a>
         <button onclick="confirmarReinicio()" class="btn btn-danger">🔄 Reiniciar mes</button>
+        <a href="/stats/inventory/download" class="btn btn-info">📦 Descargar Inventario (CSV)</a>
+        <button onclick="confirmarReinicioInventario()" class="btn btn-danger">🔄 Reiniciar Inventario</button>
     </div>
 </div>
 
@@ -172,6 +174,28 @@
         if (!confirmar) return;
         
         fetch('/stats/reset', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.ok) {
+                alert('✅ ' + data.message);
+                location.reload();
+            } else {
+                alert('❌ Error: ' + data.error);
+            }
+        })
+        .catch(e => {
+            alert('❌ Error al comunicarse con el servidor: ' + e.message);
+        });
+    }
+
+    function confirmarReinicioInventario() {
+        const confirmar = confirm("⚠️ ¿Estás seguro? Esto eliminará TODOS los movimientos de stock del inventario. Esta acción no se puede deshacer.\n\n¿Continuar?");
+        if (!confirmar) return;
+        
+        fetch('/stats/inventory/reset', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'}
         })

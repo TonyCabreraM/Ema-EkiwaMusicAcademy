@@ -1,4 +1,4 @@
-import os, io, json, csv, secrets, socket
+import os, io, json, csv, secrets, socket, threading
 from datetime import datetime, timedelta
 from flask import Flask, flash, redirect, render_template, request, send_file, session, url_for, Response, jsonify, has_request_context
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -206,41 +206,76 @@ def create_app():
     def upload_backup_to_drive_after_change():
         """Genera un respaldo completo y lo sube a Google Drive.
         Se llama después de cada cambio importante de datos.
-        Usa un nombre de archivo por día (se reemplaza con cada cambio del día)
-        para mantener un historial diario limpio en Drive.
-        No lanza excepciones: solo registra en el log.
-
-        ⚠️ DESACTIVADO: el respaldo automático a Google Drive está deshabilitado
-        por decisión del usuario (solo hará respaldos manuales). El código se
-        conserva intacto por si se quiere reactivar en el futuro.
-        """
-        # DESACTIVADO: no subir nada a Google Drive automáticamente.
-        return
-        # --- Código original (conservado, sin ejecutar) ---
+        Solo sube si el backup automático está activado en configuración.
+        Respeta el intervalo configurado para no saturar Drive.
+        No lanza excepciones: solo registra en el log."""
         try:
             if not drive_backup.is_configured() or not drive_backup.is_connected():
                 return
+            # Verificar si el backup automático está activado
+            auto_setting = AppSetting.query.filter_by(key="drive_auto_backup").first()
+            if not auto_setting or auto_setting.value != "true":
+                return
+            # Verificar intervalo
+            interval_setting = AppSetting.query.filter_by(key="drive_auto_backup_interval").first()
+            interval_seconds = int(interval_setting.value) if interval_setting else 3600
+            last_setting = AppSetting.query.filter_by(key="drive_last_auto_upload").first()
+            if last_setting and last_setting.value:
+                try:
+                    last_time = datetime.fromisoformat(last_setting.value)
+                    elapsed = (datetime.utcnow() - last_time).total_seconds()
+                    if elapsed < interval_seconds:
+                        return  # Aún no toca
+                except Exception:
+                    pass
+            # Actualizar timestamp del último upload
+            if last_setting:
+                last_setting.value = datetime.utcnow().isoformat()
+            else:
+                db.session.add(AppSetting(key="drive_last_auto_upload", value=datetime.utcnow().isoformat()))
+            db.session.commit()
             with app.app_context():
                 data = collect_backup_data()
-                # Nombre por día: se actualiza con cada cambio del día
-                filename = f"backup_{datetime.utcnow().strftime('%Y%m%d')}.json"
+                filename = f"backup_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
                 success, msg = drive_backup.upload_backup_to_drive(
                     data, filename=filename, subfolder=drive_backup.DRIVE_DB_SUBFOLDER
                 )
                 if success:
-                    logger.info(f"[Drive] {msg}")
+                    logger.info(f"[Drive Auto] {msg}")
                 else:
-                    logger.warning(f"[Drive] {msg}")
-
+                    logger.warning(f"[Drive Auto] {msg}")
                 # En producción (PostgreSQL), subir también el dump de la base
                 if os.environ.get("DATABASE_URL", "").startswith("postgres"):
                     pg_success, pg_msg = drive_backup.upload_postgres_dump()
                     if pg_success:
-                        logger.info(f"[Drive] {pg_msg}")
+                        logger.info(f"[Drive Auto] {pg_msg}")
                     else:
-                        logger.warning(f"[Drive] {pg_msg}")
+                        logger.warning(f"[Drive Auto] {pg_msg}")
         except Exception as e:
-            logger.error(f"[Drive] Error en respaldo automático: {e}")
+            logger.error(f"[Drive Auto] Error en respaldo automático: {e}")
+
+    def upload_backup_to_drive_manual():
+        """Sube un respaldo completo a Google Drive (botón manual).
+        No verifica intervalo ni configuración de auto-backup."""
+        try:
+            if not drive_backup.is_configured() or not drive_backup.is_connected():
+                return False, "Google Drive no está conectado."
+            with app.app_context():
+                data = collect_backup_data()
+                filename = f"backup_manual_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
+                success, msg = drive_backup.upload_backup_to_drive(
+                    data, filename=filename, subfolder=drive_backup.DRIVE_DB_SUBFOLDER
+                )
+                if success:
+                    logger.info(f"[Drive Manual] {msg}")
+                if os.environ.get("DATABASE_URL", "").startswith("postgres"):
+                    pg_success, pg_msg = drive_backup.upload_postgres_dump()
+                    if pg_success:
+                        logger.info(f"[Drive Manual] {pg_msg}")
+                return success, msg
+        except Exception as e:
+            logger.error(f"[Drive Manual] Error: {e}")
+            return False, str(e)
 
     def restore_backup_data(data):
         """Restaura los datos de un respaldo JSON en la base de datos.
@@ -736,6 +771,72 @@ def create_app():
             db.session.rollback()
             return jsonify({"error": str(e)}), 500
 
+    @app.route("/stats/inventory/download")
+    def stats_inventory_download():
+        """Descarga el inventario (productos + movimientos) en CSV."""
+        if not session.get("admin_id"):
+            return jsonify({"error": "No autorizado"}), 401
+        if not session.get("is_superuser"):
+            return jsonify({"error": "Sin permisos"}), 403
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(['ID Producto', 'Nombre', 'Descripción', 'Costo', 'Precio', 'Stock', 'Pto Reorden', 'ID Movimiento', 'Fecha Movimiento', 'Tipo Movimiento', 'Cambio', 'Nota'])
+
+        products = Product.query.all()
+        product_map = {p.id: p for p in products}
+        movements = ProductMovement.query.order_by(ProductMovement.created_at.desc()).all()
+
+        # Primero productos sin movimientos
+        written_products = set()
+        for m in movements:
+            p = product_map.get(m.product_id)
+            if p:
+                written_products.add(p.id)
+            writer.writerow([
+                m.product_id,
+                p.name if p else '(eliminado)',
+                p.description if p else '',
+                f'{p.cost:.2f}' if p else '',
+                f'{p.price:.2f}' if p else '',
+                p.quantity if p else '',
+                p.reorder_point if p else '',
+                m.id,
+                m.created_at.strftime('%Y-%m-%d %H:%M:%S') if m.created_at else '',
+                m.movement_type,
+                m.change,
+                m.note or ''
+            ])
+        for p in products:
+            if p.id not in written_products:
+                writer.writerow([p.id, p.name, p.description, f'{p.cost:.2f}', f'{p.price:.2f}', p.quantity, p.reorder_point, '', '', '', '', ''])
+
+        output.seek(0)
+        return Response(
+            output.getvalue(),
+            mimetype='text/csv',
+            headers={'Content-Disposition': 'attachment; filename=inventario_jubilo.csv'}
+        )
+
+    @app.route("/stats/inventory/reset", methods=["POST"])
+    def stats_inventory_reset():
+        """Elimina todos los movimientos de stock (reinicia inventario)."""
+        if not session.get("admin_id"):
+            return jsonify({"error": "No autorizado"}), 401
+        if not session.get("is_superuser"):
+            return jsonify({"error": "Sin permisos"}), 403
+        try:
+            deleted = ProductMovement.query.delete()
+            db.session.commit()
+            return jsonify({
+                "ok": True,
+                "deleted": deleted,
+                "message": f"Se eliminaron {deleted} movimientos de stock"
+            })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": str(e)}), 500
+
     @app.route("/memberships", methods=["GET", "POST"])
     def memberships():
         """Gestin de tipos de membresa (solo superusuarios)"""
@@ -798,7 +899,7 @@ def create_app():
             flash(f"Tipo de membresa '{name}' creado correctamente", "success")
             return redirect(url_for("memberships"))
 
-        memberships_list = MembershipType.query.order_by(MembershipType.created_at.desc()).all()
+        memberships_list = MembershipType.query.order_by(MembershipType.price.asc()).all()
         default_membership = get_default_membership()
         return render_template("memberships.html", memberships=memberships_list, available_icons=available_icons, available_bgs=available_bgs, default_membership=default_membership)
 
@@ -920,7 +1021,7 @@ def create_app():
         if not session.get("admin_id"): return redirect(url_for("login"))
         
         # Obtener tipos de membresa para el selector
-        membership_types = MembershipType.query.filter_by(is_active=True).all()
+        membership_types = MembershipType.query.filter_by(is_active=True).order_by(MembershipType.price.asc()).all()
         default_membership = get_default_membership()
         
         if request.method == "POST":
@@ -992,7 +1093,7 @@ def create_app():
         # Obtener tipos de membresa para el selector (si es admin)
         membership_types = []
         if is_admin:
-            membership_types = MembershipType.query.filter_by(is_active=True).all()
+            membership_types = MembershipType.query.filter_by(is_active=True).order_by(MembershipType.price.asc()).all()
             
         html = render_template("card.html", card=card, is_admin=is_admin, wa_image_url=wa_image_url, recent_transactions=recent_transactions, membership_types=membership_types)
         # Forzar charset=UTF-8 para que el navegador reciba los emojis como
@@ -2013,6 +2114,8 @@ def create_app():
 
         access_token = paypal_get_access_token()
         if not access_token:
+            purchase.status = "failed"
+            db.session.commit()
             flash("Error al iniciar el pago. Intenta de nuevo.", "error")
             return redirect(url_for("planes"))
 
@@ -2046,6 +2149,8 @@ def create_app():
             )
             if resp.status_code not in (200, 201):
                 logger.error(f"PayPal order error {resp.status_code}: {resp.text}")
+                purchase.status = "failed"
+                db.session.commit()
                 flash("Error al iniciar el pago. Intenta de nuevo.", "error")
                 return redirect(url_for("planes"))
             order = resp.json()
@@ -2054,11 +2159,15 @@ def create_app():
             # Buscar el link de aprobación
             approve_url = next((l["href"] for l in order.get("links", []) if l.get("rel") == "approve"), None)
             if not approve_url:
+                purchase.status = "failed"
+                db.session.commit()
                 flash("Error al iniciar el pago. Intenta de nuevo.", "error")
                 return redirect(url_for("planes"))
             return redirect(approve_url)
         except Exception as e:
             logger.error(f"Error creando orden PayPal: {e}")
+            purchase.status = "failed"
+            db.session.commit()
             flash("Error al iniciar el pago. Intenta de nuevo.", "error")
             return redirect(url_for("planes"))
 
@@ -2181,7 +2290,13 @@ def create_app():
             "configured": drive_backup.is_configured(),
             "connected": drive_backup.is_connected(),
         }
-        return render_template("backup.html", stats=stats, drive_status=drive_status)
+        # Configuración de backup automático a Drive
+        auto_setting = AppSetting.query.filter_by(key="drive_auto_backup").first()
+        interval_setting = AppSetting.query.filter_by(key="drive_auto_backup_interval").first()
+        drive_auto_enabled = bool(auto_setting and auto_setting.value == "true")
+        drive_auto_interval = int(interval_setting.value) if interval_setting else 3600
+        return render_template("backup.html", stats=stats, drive_status=drive_status,
+                               drive_auto_enabled=drive_auto_enabled, drive_auto_interval=drive_auto_interval)
 
     @app.route("/backup/export")
     def export_backup():
@@ -2341,6 +2456,61 @@ def create_app():
             db.session.rollback()
             flash(f"Error al importar: {str(e)}", "error")
         
+        return redirect(url_for("backup"))
+
+    @app.route("/backup/drive/upload", methods=["POST"])
+    def backup_drive_upload():
+        """Sube un respaldo manual a Google Drive."""
+        if not session.get("admin_id"): return redirect(url_for("login"))
+        if not session.get("is_superuser"):
+            flash("Solo el superusuario puede usar Google Drive", "error")
+            return redirect(url_for("backup"))
+        if not drive_backup.is_configured() or not drive_backup.is_connected():
+            flash("Google Drive no está conectado.", "error")
+            return redirect(url_for("backup"))
+        success, msg = upload_backup_to_drive_manual()
+        if success:
+            flash(f"✅ {msg}", "success")
+        else:
+            flash(f"❌ {msg}", "error")
+        return redirect(url_for("backup"))
+
+    @app.route("/backup/drive/auto-toggle", methods=["POST"])
+    def backup_drive_auto_toggle():
+        """Activa o desactiva el backup automático a Google Drive."""
+        if not session.get("admin_id"): return redirect(url_for("login"))
+        if not session.get("is_superuser"):
+            flash("Solo el superusuario puede cambiar esta configuración", "error")
+            return redirect(url_for("backup"))
+        enabled = request.form.get("enabled") == "true"
+        setting = AppSetting.query.filter_by(key="drive_auto_backup").first()
+        if setting:
+            setting.value = "true" if enabled else "false"
+        else:
+            db.session.add(AppSetting(key="drive_auto_backup", value="true" if enabled else "false"))
+        db.session.commit()
+        flash("Backup automático activado ✅" if enabled else "Backup automático desactivado ⏸️", "success")
+        return redirect(url_for("backup"))
+
+    @app.route("/backup/drive/interval", methods=["POST"])
+    def backup_drive_interval():
+        """Cambia el intervalo del backup automático a Google Drive."""
+        if not session.get("admin_id"): return redirect(url_for("login"))
+        if not session.get("is_superuser"):
+            flash("Solo el superusuario puede cambiar esta configuración", "error")
+            return redirect(url_for("backup"))
+        interval = request.form.get("interval", "3600")
+        try:
+            interval = str(max(60, int(interval)))  # mínimo 60 segundos
+        except (ValueError, TypeError):
+            interval = "3600"
+        setting = AppSetting.query.filter_by(key="drive_auto_backup_interval").first()
+        if setting:
+            setting.value = interval
+        else:
+            db.session.add(AppSetting(key="drive_auto_backup_interval", value=interval))
+        db.session.commit()
+        flash(f"Intervalo de backup automático actualizado a {interval} segundos.", "success")
         return redirect(url_for("backup"))
 
     return app
