@@ -422,9 +422,10 @@ def create_app():
         except Exception as e:
             logger.error(f"[Drive] Error en restauración automática: {e}")
 
-    # ⚠️ DESACTIVADO: la restauración automática desde Google Drive está
-    # deshabilitada (solo respaldos manuales). El código se conserva intacto.
-    # restore_latest_backup_from_drive()
+    # Restauración automática desde Google Drive al iniciar (ACTIVA).
+    # Solo se restaura si la base está vacía. El auto-respaldo hacia Drive
+    # sigue desactivado (solo respaldos manuales).
+    restore_latest_backup_from_drive()
 
     @app.context_processor
     def inject_push_config():
