@@ -65,8 +65,48 @@
                     {% if m.is_default %}⭐ Sin vencimiento{% else %}📅 Vigencia de 30 días{% endif %}
                 </span>
             </div>
+            {% if not session.get('admin_id') %}
+            <div style="text-align: center; margin-top: 15px;">
+                <button type="button" onclick="abrirContratar('{{ m.id }}', '{{ m.name }}', '{{ "%.2f"|format(m.price) }}', '{{ m.badge_color }}')"
+                    style="width: 100%; padding: 12px; border: none; border-radius: 10px; background: {{ m.badge_color }}; color: white; font-size: 1rem; font-weight: bold; cursor: pointer; box-shadow: 0 3px 10px rgba(0,0,0,0.3);">
+                    💳 Contratar
+                </button>
+            </div>
+            {% endif %}
         </div>
     </div>
+
+    <!-- Modal de contratación para este plan -->
+    {% if not session.get('admin_id') %}
+    <div id="modal-contratar-{{ m.id }}" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; justify-content:center; align-items:center;">
+        <div style="background:var(--card); border-radius:16px; padding:30px; max-width:420px; width:90%; box-shadow:0 10px 40px rgba(0,0,0,0.5); text-align:center;">
+            <h2 style="margin:0 0 5px;">💳 Contratar {{ m.name }}</h2>
+            <p style="color:var(--muted); margin:0 0 20px;">${{ "%.2f"|format(m.price) }}</p>
+            <form method="POST" action="{{ url_for('comprar_submit') }}">
+                <input type="hidden" name="membership_type_id" value="{{ m.id }}">
+                <div style="margin-bottom:15px; text-align:left;">
+                    <label style="font-size:0.9rem; color:var(--muted);">Tu nombre</label>
+                    <input type="text" name="client_name" required placeholder="Ej. Juan Pérez"
+                        style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--text); font-size:1rem; box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:20px; text-align:left;">
+                    <label style="font-size:0.9rem; color:var(--muted);">Tu teléfono</label>
+                    <input type="tel" name="phone" required placeholder="Ej. 5215512345678"
+                        style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--text); font-size:1rem; box-sizing:border-box;">
+                </div>
+                <button type="submit" style="width:100%; padding:12px; border:none; border-radius:10px; background:{{ m.badge_color }}; color:white; font-size:1rem; font-weight:bold; cursor:pointer; box-shadow:0 3px 10px rgba(0,0,0,0.3);">
+                    🅿️ Pagar con PayPal
+                </button>
+                <button type="button" onclick="cerrarContratar('{{ m.id }}')"
+                    style="width:100%; padding:10px; border:none; border-radius:10px; background:transparent; color:var(--muted); font-size:0.9rem; cursor:pointer; margin-top:10px;">
+                    Cancelar
+                </button>
+            </form>
+            <p style="font-size:0.8rem; color:var(--muted); margin:15px 0 0;">Al pagar aceptas los términos. Tu QR se entrega al momento.</p>
+        </div>
+    </div>
+    {% endif %}
+
     {% endfor %}
 </div>
 
@@ -78,4 +118,21 @@
     <p class="muted">No hay membresías disponibles por el momento.</p>
 </div>
 {% endif %}
+
+<script>
+function abrirContratar(planId, nombre, precio, color) {
+    const modal = document.getElementById('modal-contratar-' + planId);
+    if (modal) { modal.style.display = 'flex'; }
+}
+function cerrarContratar(planId) {
+    const modal = document.getElementById('modal-contratar-' + planId);
+    if (modal) { modal.style.display = 'none'; }
+}
+// Cerrar modal al hacer clic fuera
+document.querySelectorAll('[id^="modal-contratar-"]').forEach(function(modal) {
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) modal.style.display = 'none';
+    });
+});
+</script>
 {% endblock %}
