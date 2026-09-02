@@ -154,10 +154,16 @@
                     <input type="file" name="image_file" id="image_file" accept="image/*"
                            onchange="previewProductImage(this)" style="flex: 1; min-width: 200px;">
                     <button type="button" class="btn btn-sm" onclick="document.getElementById('image_file').click()" style="flex: 0;">
-                        📷 Tomar foto / Elegir
+                        🖼️ Elegir de galería
                     </button>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="document.getElementById('camera_file').click()" style="flex: 0;">
+                        📷 Tomar foto
+                    </button>
+                    <!-- Input oculto que abre la cámara directamente en el celular -->
+                    <input type="file" id="camera_file" accept="image/*" capture="environment"
+                           onchange="previewProductImage(this)" style="display: none;">
                 </div>
-                <small class="muted">En el celular puedes <strong>tomar la foto con la cámara</strong> o elegirla de la galería.</small>
+                <small class="muted">Pulsa <strong>📷 Tomar foto</strong> para abrir la cámara del dispositivo, o <strong>🖼️ Elegir de galería</strong> para seleccionar una imagen existente.</small>
             </label>
             <div id="imagePreview" style="display:none; text-align:center; margin-top: 8px;">
                 <img id="imagePreviewImg" src="" alt="Vista previa"
@@ -377,7 +383,18 @@
                 </label>
             </div>
             <label>Foto (opcional)
-                <input type="file" name="image_file" accept="image/*">
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <input type="file" name="image_file" id="edit_image_file" accept="image/*"
+                           onchange="previewEditImage(this)" style="flex: 1; min-width: 200px;">
+                    <button type="button" class="btn btn-sm" onclick="document.getElementById('edit_image_file').click()" style="flex: 0;">
+                        🖼️ Elegir de galería
+                    </button>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="document.getElementById('edit_camera_file').click()" style="flex: 0;">
+                        📷 Tomar foto
+                    </button>
+                    <input type="file" id="edit_camera_file" accept="image/*" capture="environment"
+                           onchange="previewEditImage(this)" style="display: none;">
+                </div>
                 <small class="muted">Si no eliges una nueva, se conserva la actual.</small>
             </label>
             <div style="margin-top: 20px; display: flex; gap: 10px;">
@@ -411,6 +428,13 @@ function previewProductImage(input) {
     const img = document.getElementById('imagePreviewImg');
     const file = input.files && input.files[0];
     if (file) {
+        // Si la foto vino de la cámara, copiarla al input que se envía con el formulario
+        if (input.id === 'camera_file') {
+            const mainInput = document.getElementById('image_file');
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            mainInput.files = dt.files;
+        }
         const reader = new FileReader();
         reader.onload = function(e) {
             img.src = e.target.result;
@@ -420,6 +444,19 @@ function previewProductImage(input) {
     } else {
         preview.style.display = 'none';
         img.src = '';
+    }
+}
+
+// Vista previa de imagen al editar producto (sincroniza la cámara con el input del formulario)
+function previewEditImage(input) {
+    const file = input.files && input.files[0];
+    if (file) {
+        if (input.id === 'edit_camera_file') {
+            const mainInput = document.getElementById('edit_image_file');
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            mainInput.files = dt.files;
+        }
     }
 }
 
