@@ -2458,6 +2458,43 @@ def create_app():
         purchases = PurchaseRequest.query.order_by(PurchaseRequest.created_at.desc()).all()
         return render_template("compras.html", purchases=purchases)
 
+    @app.route("/compras/delete/<int:purchase_id>", methods=["POST"])
+    def compras_delete(purchase_id):
+        """Elimina un registro de compra fallido/pendiente (solo superusuario).
+        No permite borrar compras pagadas para no perder la tarjeta asociada."""
+        if not session.get("admin_id"): return redirect(url_for("login"))
+        if not session.get("is_superuser"):
+            flash("Solo el superusuario puede eliminar compras", "error")
+            return redirect(url_for("dashboard"))
+        purchase = PurchaseRequest.query.get(purchase_id)
+        if not purchase:
+            flash("Compra no encontrada", "error")
+            return redirect(url_for("compras"))
+        if purchase.status == "paid":
+            flash("No se puede eliminar una compra pagada", "error")
+            return redirect(url_for("compras"))
+        db.session.delete(purchase)
+        db.session.commit()
+        upload_backup_to_drive_after_change()
+        flash(f"Registro de compra #{purchase_id} eliminado", "success")
+        return redirect(url_for("compras"))
+
+    @app.route("/compras/delete-failed", methods=["POST"])
+    def compras_delete_failed():
+        """Elimina todos los registros de compra fallidos (solo superusuario)."""
+        if not session.get("admin_id"): return redirect(url_for("login"))
+        if not session.get("is_superuser"):
+            flash("Solo el superusuario puede eliminar compras", "error")
+            return redirect(url_for("dashboard"))
+        failed = PurchaseRequest.query.filter(PurchaseRequest.status != "paid").all()
+        count = len(failed)
+        for p in failed:
+            db.session.delete(p)
+        db.session.commit()
+        upload_backup_to_drive_after_change()
+        flash(f"Se eliminaron {count} registros no pagados", "success")
+        return redirect(url_for("compras"))
+
     # ===== BACKUP (solo superusuarios) =====
     @app.route("/backup")
     def backup():
