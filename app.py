@@ -989,7 +989,8 @@ def create_app():
         """Vista pública de membresías para clientes (no requiere login)."""
         memberships_list = MembershipType.query.filter_by(is_active=True).order_by(MembershipType.price.asc()).all()
         default_membership = get_default_membership()
-        return render_template("planes.html", memberships=memberships_list, default_membership=default_membership)
+        return render_template("planes.html", memberships=memberships_list, default_membership=default_membership,
+                               paypal_client_id=PAYPAL_CLIENT_ID, paypal_currency=PAYPAL_CURRENCY, has_paypal=HAS_PAYPAL)
 
     def get_default_membership():
         """Obtiene la membresía marcada como por defecto"""
@@ -2203,6 +2204,119 @@ def create_app():
             db.session.commit()
             flash("Error al iniciar el pago. Intenta de nuevo.", "error")
             return redirect(url_for("planes"))
+
+    @app.route("/api/paypal/create-order", methods=["POST"])
+    def paypal_create_order():
+        """Crea una orden de PayPal (usado por el botón de PayPal JS SDK)."""
+        data = request.get_json(silent=True) or {}
+        client_name = sanitize_input(data.get("client_name", ""))
+        phone = sanitize_input(data.get("phone", ""))
+        membership_type_id = data.get("membership_type_id")
+        if not client_name or not phone or not membership_type_id:
+            return jsonify({"error": "Completa todos los campos"}), 400
+        membership = MembershipType.query.get(membership_type_id)
+        if not membership or not membership.is_active:
+            return jsonify({"error": "Plan no válido"}), 400
+        if not HAS_PAYPAL:
+            return jsonify({"error": "El pago en línea aún no está configurado."}), 400
+
+        purchase = PurchaseRequest(
+            client_name=client_name,
+            phone=phone,
+            membership_type_id=membership.id,
+            status="pending",
+            amount=membership.price,
+        )
+        db.session.add(purchase)
+        db.session.commit()
+
+        access_token = paypal_get_access_token()
+        if not access_token:
+            purchase.status = "failed"
+            db.session.commit()
+            return jsonify({"error": "Error al iniciar el pago. Intenta de nuevo."}), 500
+
+        try:
+            order_payload = {
+                "intent": "CAPTURE",
+                "purchase_units": [{
+                    "reference_id": str(purchase.id),
+                    "description": f"Membresía {membership.name}",
+                    "amount": {
+                        "currency_code": PAYPAL_CURRENCY,
+                        "value": f"{membership.price:.2f}",
+                    },
+                }],
+                "application_context": {
+                    "brand_name": "Júbilo",
+                    "user_action": "PAY_NOW",
+                    "return_url": f"{get_public_base_url()}/comprar/confirmacion?purchase_id={purchase.id}",
+                    "cancel_url": f"{get_public_base_url()}/planes?cancelado=1",
+                },
+            }
+            resp = http_requests.post(
+                f"{PAYPAL_BASE}/v2/checkout/orders",
+                json=order_payload,
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json",
+                },
+                timeout=30,
+            )
+            if resp.status_code not in (200, 201):
+                logger.error(f"PayPal order error {resp.status_code}: {resp.text}")
+                _set_paypal_error("Error creando orden de pago", resp.status_code, resp.text)
+                purchase.status = "failed"
+                db.session.commit()
+                return jsonify({"error": "Error al iniciar el pago. Intenta de nuevo."}), 500
+            order = resp.json()
+            purchase.stripe_session_id = order["id"]
+            db.session.commit()
+            return jsonify({"id": order["id"]})
+        except Exception as e:
+            logger.error(f"Error creando orden PayPal: {e}")
+            _set_paypal_error(f"Excepción creando orden: {e}")
+            purchase.status = "failed"
+            db.session.commit()
+            return jsonify({"error": "Error al iniciar el pago. Intenta de nuevo."}), 500
+
+    @app.route("/api/paypal/capture-order", methods=["POST"])
+    def paypal_capture_order():
+        """Captura una orden de PayPal aprobada y crea la tarjeta (usado por el botón JS SDK)."""
+        data = request.get_json(silent=True) or {}
+        order_id = data.get("orderID") or data.get("order_id")
+        if not order_id:
+            return jsonify({"error": "Falta el id de la orden"}), 400
+        purchase = PurchaseRequest.query.filter_by(stripe_session_id=order_id).first()
+        if not purchase:
+            return jsonify({"error": "No se encontró la compra"}), 404
+        if purchase.status == "paid":
+            return jsonify({"ok": True, "already_paid": True})
+
+        access_token = paypal_get_access_token()
+        if not access_token:
+            return jsonify({"error": "Error al confirmar el pago. Intenta de nuevo."}), 500
+        try:
+            resp = http_requests.post(
+                f"{PAYPAL_BASE}/v2/checkout/orders/{order_id}/capture",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json",
+                },
+                timeout=30,
+            )
+            if resp.status_code in (200, 201):
+                result = resp.json()
+                if result.get("status") == "COMPLETED" and purchase.status != "paid":
+                    create_card_from_purchase(purchase)
+                return jsonify({"ok": True, "phone": purchase.phone})
+            logger.error(f"PayPal capture error {resp.status_code}: {resp.text}")
+            _set_paypal_error("Error capturando orden", resp.status_code, resp.text)
+            return jsonify({"error": "El pago no se pudo completar. Intenta de nuevo."}), 500
+        except Exception as e:
+            logger.error(f"Error capturando orden PayPal: {e}")
+            _set_paypal_error(f"Excepción capturando orden: {e}")
+            return jsonify({"error": "Error al confirmar el pago. Intenta de nuevo."}), 500
 
     @app.route("/comprar/confirmacion")
     def comprar_confirmacion():

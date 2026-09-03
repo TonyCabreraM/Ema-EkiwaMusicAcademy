@@ -82,26 +82,30 @@
         <div style="background:var(--card); border-radius:16px; padding:30px; max-width:420px; width:90%; box-shadow:0 10px 40px rgba(0,0,0,0.5); text-align:center;">
             <h2 style="margin:0 0 5px;">💳 Contratar {{ m.name }}</h2>
             <p style="color:var(--muted); margin:0 0 20px;">${{ "%.2f"|format(m.price) }}</p>
-            <form method="POST" action="{{ url_for('comprar_submit') }}">
-                <input type="hidden" name="membership_type_id" value="{{ m.id }}">
+            <div>
+                <input type="hidden" id="membership_type_id_{{ m.id }}" value="{{ m.id }}">
                 <div style="margin-bottom:15px; text-align:left;">
                     <label style="font-size:0.9rem; color:var(--muted);">Tu nombre</label>
-                    <input type="text" name="client_name" required placeholder="Ej. Juan Pérez"
+                    <input type="text" id="client_name_{{ m.id }}" required placeholder="Ej. Juan Pérez"
                         style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--text); font-size:1rem; box-sizing:border-box;">
                 </div>
                 <div style="margin-bottom:20px; text-align:left;">
                     <label style="font-size:0.9rem; color:var(--muted);">Tu teléfono</label>
-                    <input type="tel" name="phone" required placeholder="Ej. 5215512345678"
+                    <input type="tel" id="phone_{{ m.id }}" required placeholder="Ej. 5215512345678"
                         style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--text); font-size:1rem; box-sizing:border-box;">
                 </div>
-                <button type="submit" style="width:100%; padding:12px; border:none; border-radius:10px; background:{{ m.badge_color }}; color:white; font-size:1rem; font-weight:bold; cursor:pointer; box-shadow:0 3px 10px rgba(0,0,0,0.3);">
-                    🅿️ Pagar con PayPal
-                </button>
+                {% if has_paypal %}
+                <div id="paypal-button-container-{{ m.id }}" style="margin-top: 10px;"></div>
+                {% else %}
+                <div style="padding:12px; border-radius:8px; background:rgba(220,53,69,0.12); border:1px solid rgba(220,53,69,0.4); margin:10px 0;">
+                    <strong style="color:#dc3545;">⚠️ El pago en línea aún no está disponible.</strong>
+                </div>
+                {% endif %}
                 <button type="button" onclick="cerrarContratar('{{ m.id }}')"
                     style="width:100%; padding:10px; border:none; border-radius:10px; background:transparent; color:var(--muted); font-size:0.9rem; cursor:pointer; margin-top:10px;">
                     Cancelar
                 </button>
-            </form>
+            </div>
             <p style="font-size:0.8rem; color:var(--muted); margin:15px 0 0;">Al pagar aceptas los términos. Tu QR se entrega al momento.</p>
         </div>
     </div>
@@ -135,4 +139,59 @@ document.querySelectorAll('[id^="modal-contratar-"]').forEach(function(modal) {
     });
 });
 </script>
+
+{% if has_paypal and not session.get('admin_id') %}
+<!-- PayPal JavaScript SDK (botón oficial de PayPal) -->
+<script src="https://www.paypal.com/sdk/js?client-id={{ paypal_client_id }}&currency={{ paypal_currency }}"></script>
+<script>
+{% for m in memberships %}
+(function() {
+    const planId = '{{ m.id }}';
+    const container = document.getElementById('paypal-button-container-' + planId);
+    if (!container || typeof paypal === 'undefined') return;
+    paypal.Buttons({
+        style: { layout: 'vertical', color: 'gold', shape: 'rect', label: 'paypal', height: 45 },
+        createOrder: function(data, actions) {
+            const name = document.getElementById('client_name_' + planId).value.trim();
+            const phone = document.getElementById('phone_' + planId).value.trim();
+            if (!name || !phone) {
+                alert('⚠️ Completa tu nombre y teléfono para continuar.');
+                return actions.reject();
+            }
+            return fetch('/api/paypal/create-order', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    client_name: name,
+                    phone: phone,
+                    membership_type_id: planId
+                })
+            }).then(function(res) { return res.json(); }).then(function(data) {
+                if (data.error) { alert('❌ ' + data.error); throw new Error(data.error); }
+                return data.id;
+            });
+        },
+        onApprove: function(data, actions) {
+            return fetch('/api/paypal/capture-order', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ orderID: data.orderID })
+            }).then(function(res) { return res.json(); }).then(function(details) {
+                if (details.error) { alert('❌ ' + details.error); return; }
+                alert('✅ ¡Pago exitoso! Tu membresía está activa.');
+                window.location.href = '/comprar/estado?phone=' + encodeURIComponent(details.phone);
+            });
+        },
+        onCancel: function(data) {
+            // El usuario canceló el pago
+        },
+        onError: function(err) {
+            console.error('PayPal error:', err);
+            alert('❌ Ocurrió un error con PayPal. Intenta de nuevo.');
+        }
+    }).render('#paypal-button-container-' + planId);
+})();
+{% endfor %}
+</script>
+{% endif %}
 {% endblock %}
