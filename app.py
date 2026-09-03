@@ -2318,6 +2318,36 @@ def create_app():
             _set_paypal_error(f"Excepción capturando orden: {e}")
             return jsonify({"error": "Error al confirmar el pago. Intenta de nuevo."}), 500
 
+    @app.route("/api/membership/free", methods=["POST"])
+    def membership_free():
+        """Crea la tarjeta QR directamente para una membresía gratuita (sin PayPal)."""
+        data = request.get_json(silent=True) or {}
+        client_name = sanitize_input(data.get("client_name", ""))
+        phone = sanitize_input(data.get("phone", ""))
+        membership_type_id = data.get("membership_type_id")
+        if not client_name or not phone or not membership_type_id:
+            return jsonify({"error": "Completa todos los campos"}), 400
+        membership = MembershipType.query.get(membership_type_id)
+        if not membership or not membership.is_active:
+            return jsonify({"error": "Plan no válido"}), 400
+        if membership.price > 0:
+            return jsonify({"error": "Esta membresía no es gratuita"}), 400
+
+        # Crear la solicitud de compra como pagada (gratuita)
+        purchase = PurchaseRequest(
+            client_name=client_name,
+            phone=phone,
+            membership_type_id=membership.id,
+            status="paid",
+            amount=0,
+        )
+        db.session.add(purchase)
+        db.session.commit()
+
+        # Crear la tarjeta con QR
+        card = create_card_from_purchase(purchase)
+        return jsonify({"ok": True, "card_code": card.code, "phone": purchase.phone})
+
     @app.route("/comprar/confirmacion")
     def comprar_confirmacion():
         """PayPal redirige aquí tras aprobar el pago. Captura la orden y crea la tarjeta."""
