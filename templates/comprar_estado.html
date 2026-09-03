@@ -26,13 +26,78 @@
 
     {% if result %}
         {% if result.card %}
-        <div class="card-view" style="max-width: 400px; margin: 20px auto; text-align: center;">
+        {% set card = result.card %}
+        <div class="text-center mb-3">
             <h2>✅ ¡Tu membresía está activa!</h2>
-            <p class="muted">Muestra este QR en el establecimiento para usar tus beneficios.</p>
-            <img src="{{ url_for('card_qr', code=result.card.code) }}" alt="QR" style="width: 220px; height: 220px; border-radius: 12px; background: white; padding: 8px;">
-            <p class="muted small mt-2">Código: <code>{{ result.card.code }}</code></p>
-            <p class="muted small">Membresía: <strong>{{ result.purchase.membership_type.name if result.purchase.membership_type else '—' }}</strong></p>
-            <a href="{{ url_for('view_card', code=result.card.code) }}" class="btn btn-primary mt-3">Ver mi tarjeta</a>
+            <p class="muted">Esta es tu tarjeta Júbilo. Muestra el QR en el establecimiento para usar tus beneficios.</p>
+        </div>
+
+        <!-- Visual de la Tarjeta -->
+        <div class="card-view" style="max-width: 500px; margin: 0 auto;">
+            <div class="card-visual" style="{% if card.membership_type and card.membership_type.background_image %}background-image: url('{{ card.membership_type.background_image }}'); background-size: cover; background-position: center;{% endif %}">
+
+                <!-- Distintivo de Membresía -->
+                {% if card.membership_type %}
+                <div style="margin-bottom: 15px;">
+                    {% if card.membership_type.badge_icon %}
+                    <img src="{{ card.membership_type.badge_icon }}" alt="Distintivo" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; border: 4px solid {{ card.membership_type.badge_color }}; box-shadow: 0 0 15px rgba(0,0,0,0.3);">
+                    {% else %}
+                    <div style="width: 70px; height: 70px; border-radius: 50%; background-color: {{ card.membership_type.badge_color }}; margin: 0 auto; border: 4px solid white; display: flex; align-items: center; justify-content: center; font-size: 2rem; box-shadow: 0 0 15px rgba(0,0,0,0.3);">💎</div>
+                    {% endif %}
+                </div>
+
+                <div style="background: rgba(0,0,0,0.7); padding: 5px 15px; border-radius: 20px; display: inline-block; margin-bottom: 10px; border: 1px solid {{ card.membership_type.badge_color }};">
+                    <span style="color: var(--cream); font-weight: 700; font-size: 0.9rem;">{{ card.membership_type.name }}</span>
+                </div>
+                {% endif %}
+
+                <h2>{{ card.client_name }}</h2>
+                {% if card.phone %}<p class="muted small">📱 {{ card.phone }}</p>{% endif %}
+
+                <p class="balance">Saldo disponible</p>
+                <p class="balance-amount">${{ "%.2f"|format(card.balance) }}</p>
+
+                {% if card.membership_type and card.membership_expires_at %}
+                <div style="margin-top: 15px; padding: 10px; background: rgba(0,0,0,0.6); border-radius: 8px; border: 1px solid {{ card.membership_type.badge_color }};">
+                    <p style="color: var(--cream); margin: 0; font-size: 0.9rem;">
+                        📅 Vence: {{ card.membership_expires_at.strftime('%d/%m/%Y') }}
+                    </p>
+                </div>
+                {% endif %}
+
+                <!-- QR -->
+                <div style="display: flex; gap: 20px; align-items: center; justify-content: center; margin-top: 20px; flex-wrap: wrap;">
+                    <img src="{{ url_for('card_qr', code=card.code) }}" alt="Código QR" class="qr-img" style="margin: 0;">
+
+                    {% if card.membership_type %}
+                    <div style="text-align: left; background: rgba(62, 39, 35, 0.85); padding: 15px; border-radius: 10px; border: 2px solid {{ card.membership_type.badge_color }}; min-width: 200px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+                        <h4 style="margin: 0 0 10px; color: {{ card.membership_type.badge_color }}; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">Beneficios Activos</h4>
+                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 0.9rem; color: #F5E9D8;">
+                            {% if card.membership_type.cashback_percent > 0 %}
+                            <li>✨ <strong>{{ card.membership_type.cashback_percent }}%</strong> Cashback en canjes</li>
+                            {% endif %}
+                            {% if card.membership_type.discount_percent > 0 %}
+                            <li>🏷️ <strong>{{ card.membership_type.discount_percent }}%</strong> Descuento en canjes</li>
+                            {% endif %}
+                            {% if card.membership_type.drinks_count > 0 %}
+                            <li>☕ <strong>{{ card.membership_type.drinks_count }}</strong> Bebidas/mes</li>
+                            {% endif %}
+                            {% if card.membership_type.grain_bags > 0 %}
+                            <li>🌾 <strong>{{ card.membership_type.grain_bags }}</strong> Bolsas de grano</li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                </div>
+                <p class="muted small">Escanea para ver tu tarjeta</p>
+
+                <!-- Botones de Descarga -->
+                <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                    <a href="{{ url_for('whatsapp_image', code=card.code, dl=1) }}" download="tarjeta_{{ card.code }}.png"
+                       class="btn btn-sm">⬇ Descargar mi tarjeta</a>
+                    <a href="{{ url_for('view_card', code=card.code) }}" class="btn btn-sm btn-primary">👁 Ver mi tarjeta</a>
+                </div>
+            </div>
         </div>
         {% else %}
         {% if result.purchase.status == 'failed' %}
