@@ -2094,7 +2094,13 @@ def create_app():
             return None
 
     def create_card_from_purchase(purchase):
-        """Crea la tarjeta con QR único cuando se aprueba el pago de una membresía."""
+        """Crea la tarjeta con QR único cuando se aprueba el pago de una membresía.
+        Devuelve None si el teléfono ya tiene una tarjeta activa (no se crea duplicado)."""
+        # Evitar duplicados: si el teléfono ya tiene una tarjeta activa, no crear otra
+        existing = Card.query.filter_by(phone=purchase.phone, is_active=True).first()
+        if existing:
+            logger.warning(f"Teléfono {purchase.phone} ya tiene una tarjeta activa ({existing.code}). No se crea duplicado.")
+            return None
         code = generate_unique_code()
         card = Card(
             code=code,
@@ -2333,6 +2339,11 @@ def create_app():
         if membership.price > 0:
             return jsonify({"error": "Esta membresía no es gratuita"}), 400
 
+        # Evitar duplicados: si el teléfono ya tiene una tarjeta activa, no crear otra
+        existing = Card.query.filter_by(phone=phone, is_active=True).first()
+        if existing:
+            return jsonify({"error": "Este número de teléfono ya tiene una tarjeta Júbilo activa."}), 409
+
         # Crear la solicitud de compra como pagada (gratuita)
         purchase = PurchaseRequest(
             client_name=client_name,
@@ -2346,6 +2357,8 @@ def create_app():
 
         # Crear la tarjeta con QR
         card = create_card_from_purchase(purchase)
+        if not card:
+            return jsonify({"error": "Este número de teléfono ya tiene una tarjeta Júbilo activa."}), 409
         return jsonify({"ok": True, "card_code": card.code, "phone": purchase.phone})
 
     @app.route("/comprar/confirmacion")
