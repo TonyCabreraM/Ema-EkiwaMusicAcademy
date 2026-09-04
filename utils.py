@@ -538,6 +538,8 @@ def generate_whatsapp_image(client_name: str, qr_data: str, custom_message: str 
             if benefit_labels:
                 ben_title = "Beneficios Activos"
                 bt_bbox = draw.textbbox((0,0), ben_title, font=benefit_title_font)
+                bt_w = bt_bbox[2] - bt_bbox[0]
+                bt_h = bt_bbox[3] - bt_bbox[1]
                 # Calcular ancho máximo entre todos los textos
                 max_w = 0
                 for _, text, _ in benefit_labels:
@@ -547,7 +549,8 @@ def generate_whatsapp_image(client_name: str, qr_data: str, custom_message: str 
                 bpx, bpy = 20, 15
                 line_h = 35
                 total_w = min(max_w + bpx*2 + 40, width - 80)
-                total_h = bpy*2 + 30 + len(benefit_labels)*line_h + 10  # +10 para la línea divisoria
+                # Altura: padding sup + título + gap + línea + gap + beneficios + padding inf
+                total_h = bpy + bt_h + 12 + 1 + 12 + len(benefit_labels)*line_h + bpy
                 ben_x = (width - total_w) // 2
                 
                 layer = Image.new('RGBA', img.size, (0,0,0,0))
@@ -555,14 +558,14 @@ def generate_whatsapp_image(client_name: str, qr_data: str, custom_message: str 
                 ld.rounded_rectangle([ben_x, y_cursor, ben_x+total_w, y_cursor+total_h], radius=12, fill=(62,39,35,216), outline=badge_color_rgb, width=2)
                 
                 # Título centrado
-                ld.text(((width-(bt_bbox[2]-bt_bbox[0]))//2, y_cursor+bpy), ben_title, font=benefit_title_font, fill=badge_color_rgb)
+                ld.text(((width-bt_w)//2, y_cursor+bpy), ben_title, font=benefit_title_font, fill=badge_color_rgb)
                 
-                # Línea divisoria debajo del título
-                line_y = y_cursor + bpy + 25
+                # Línea divisoria debajo del título (entre el título y los beneficios)
+                line_y = y_cursor + bpy + bt_h + 12
                 ld.line([ben_x + 15, line_y, ben_x + total_w - 15, line_y], fill=badge_color_rgb, width=1)
                 
                 # Beneficios centrados con iconos
-                yb = y_cursor + bpy + 35
+                yb = line_y + 12
                 for label, text, icon_file in benefit_labels:
                     # Cargar y dibujar icono PNG
                     icon_path = os.path.join(os.path.dirname(__file__), 'ImgenQr', 'Iconos', icon_file)
