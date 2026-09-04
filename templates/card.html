@@ -329,6 +329,31 @@
             <a href="{{ url_for('planes') }}" class="btn btn-block" style="margin-top: 15px;">
                 💎 Ver Membresías Disponibles
             </a>
+
+            <!-- Recargar Saldo con PayPal -->
+            <div style="margin-top: 20px; padding: 15px; background: var(--bg); border: 2px solid var(--border); border-radius: 12px;">
+                <h4 style="margin: 0 0 10px;">💰 Recargar Saldo</h4>
+                <p style="font-size: 0.85rem; color: var(--muted); margin: 0 0 12px;">Agrega saldo a tu tarjeta para canjear beneficios.</p>
+                <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
+                    <button type="button" class="btn btn-sm recharge-amount" onclick="setRechargeAmount(50)">$50</button>
+                    <button type="button" class="btn btn-sm recharge-amount" onclick="setRechargeAmount(100)">$100</button>
+                    <button type="button" class="btn btn-sm recharge-amount" onclick="setRechargeAmount(200)">$200</button>
+                    <button type="button" class="btn btn-sm recharge-amount" onclick="setRechargeAmount(500)">$500</button>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
+                    <input type="number" id="rechargeAmount" min="1" step="0.01" placeholder="Otro monto"
+                           style="flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font-size: 0.95rem; box-sizing: border-box;">
+                    <span style="color: var(--muted);">MXN</span>
+                </div>
+                {% if has_paypal %}
+                <div id="recharge-paypal-btn" style="margin-top: 5px;"></div>
+                <p id="rechargeStatus" style="font-size: 0.8rem; color: var(--muted); margin-top: 8px; display: none;"></p>
+                {% else %}
+                <div style="padding: 12px; border-radius: 8px; background: rgba(220,53,69,0.12); border: 1px solid rgba(220,53,69,0.4);">
+                    <strong style="color: #dc3545;">⚠️ El pago en línea aún no está disponible.</strong>
+                </div>
+                {% endif %}
+            </div>
         {% endif %}
     </div>
 </div>
@@ -355,6 +380,10 @@
 <div style="margin-top: 20px; text-align: center;">
     <a href="{{ url_for('dashboard') }}" class="btn">⬅ Volver al Panel</a>
 </div>
+
+{% if has_paypal and not session.get('admin_id') %}
+<script src="https://www.paypal.com/sdk/js?client-id={{ paypal_client_id }}&currency={{ paypal_currency }}"></script>
+{% endif %}
 
 <script>
 let pendingPhone = '';
@@ -584,6 +613,76 @@ document.addEventListener('DOMContentLoaded', function() {
     preview.style.borderColor = '{{ card.membership_type.badge_color }}';
     preview.style.borderWidth = '3px';
 });
+{% endif %}
+
+// ===== Recarga de Saldo con PayPal =====
+var rechargeCardCode = '{{ card.code }}';
+
+function setRechargeAmount(amount) {
+    document.getElementById('rechargeAmount').value = amount;
+    // Resaltar el botón seleccionado
+    document.querySelectorAll('.recharge-amount').forEach(function(btn) {
+        btn.classList.remove('btn-primary');
+    });
+    event.target.classList.add('btn-primary');
+}
+
+{% if has_paypal and not session.get('admin_id') %}
+// Renderizar botón de PayPal para recarga
+var rechargePaypalRendered = false;
+function renderRechargePayPal() {
+    if (rechargePaypalRendered || typeof paypal === 'undefined') return;
+    var container = document.getElementById('recharge-paypal-btn');
+    if (!container) return;
+    rechargePaypalRendered = true;
+    paypal.Buttons({
+        style: { layout: 'vertical', color: 'blue', shape: 'rect', label: 'paypal', height: 40 },
+        createOrder: function(data, actions) {
+            var amount = parseFloat(document.getElementById('rechargeAmount').value);
+            if (!amount || amount <= 0) {
+                alert('⚠️ Ingresa un monto para recargar.');
+                return actions.reject();
+            }
+            return fetch('/api/paypal/create-recharge-order', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ card_code: rechargeCardCode, amount: amount })
+            }).then(function(res) { return res.json(); }).then(function(order) {
+                if (order.error) { alert('❌ ' + order.error); return actions.reject(); }
+                return order.id;
+            });
+        },
+        onApprove: function(data) {
+            var amount = parseFloat(document.getElementById('rechargeAmount').value);
+            var status = document.getElementById('rechargeStatus');
+            if (status) { status.style.display = 'block'; status.textContent = '⏳ Confirmando pago...'; status.style.color = 'var(--text)'; }
+            return fetch('/api/paypal/capture-recharge-order', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ orderID: data.orderID, card_code: rechargeCardCode, amount: amount })
+            }).then(function(res) { return res.json(); }).then(function(result) {
+                if (result.ok) {
+                    if (status) { status.textContent = '✅ ¡Recarga exitosa! Nuevo saldo: $' + result.new_balance.toFixed(2); status.style.color = 'var(--success)'; }
+                    alert('✅ ¡Saldo recargado! Tu nuevo saldo es $' + result.new_balance.toFixed(2));
+                    location.reload();
+                } else {
+                    if (status) { status.textContent = '❌ ' + (result.error || 'Error al recargar'); status.style.color = 'var(--danger)'; }
+                }
+            });
+        },
+        onCancel: function() {
+            var status = document.getElementById('rechargeStatus');
+            if (status) { status.style.display = 'block'; status.textContent = 'Pago cancelado.'; status.style.color = 'var(--muted)'; }
+        },
+        onError: function(err) {
+            var status = document.getElementById('rechargeStatus');
+            if (status) { status.style.display = 'block'; status.textContent = '❌ Error: ' + err.message; status.style.color = 'var(--danger)'; }
+        }
+    }).render('#recharge-paypal-btn');
+}
+// Renderizar cuando PayPal SDK esté listo
+if (typeof paypal !== 'undefined') { renderRechargePayPal(); }
+else { window.addEventListener('load', function() { setTimeout(renderRechargePayPal, 1000); }); }
 {% endif %}
 </script>
 {% endblock %}

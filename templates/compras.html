@@ -52,13 +52,10 @@
                                 {% else %}—{% endif %}
                             </td>
                             <td>
-                                {% if p.status != 'paid' %}
-                                <form method="POST" action="{{ url_for('compras_delete', purchase_id=p.id) }}" onsubmit="return confirm('¿Eliminar este registro de compra #{{ p.id }}?');">
+                                <form method="POST" action="{{ url_for('compras_delete', purchase_id=p.id) }}"
+                                      onsubmit="return confirm('{% if p.status == "paid" %}⚠️ Esta compra está PAGADA y tiene tarjeta asociada. La tarjeta se desactivará.\n\n{% endif %}¿Eliminar este registro de compra #{{ p.id }}?');">
                                     <button type="submit" class="btn btn-sm btn-danger">🗑️</button>
                                 </form>
-                                {% else %}
-                                <span class="muted small">—</span>
-                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}

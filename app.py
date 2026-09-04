@@ -1105,7 +1105,10 @@ def create_app():
         if is_admin:
             membership_types = MembershipType.query.filter_by(is_active=True).order_by(MembershipType.price.asc()).all()
             
-        html = render_template("card.html", card=card, is_admin=is_admin, wa_image_url=wa_image_url, recent_transactions=recent_transactions, membership_types=membership_types)
+        html = render_template("card.html", card=card, is_admin=is_admin, wa_image_url=wa_image_url,
+                               recent_transactions=recent_transactions, membership_types=membership_types,
+                               has_paypal=HAS_PAYPAL, paypal_client_id=PAYPAL_CLIENT_ID,
+                               paypal_currency=PAYPAL_CURRENCY)
         # Forzar charset=UTF-8 para que el navegador reciba los emojis como
         # bytes UTF-8 reales y encodeURIComponent los codifique correctamente
         # (sin esto, WhatsApp muestra el texto literal en vez del emoji).
@@ -2361,6 +2364,116 @@ def create_app():
             return jsonify({"error": "Este número de teléfono ya tiene una tarjeta Júbilo activa."}), 409
         return jsonify({"ok": True, "card_code": card.code, "phone": purchase.phone})
 
+    @app.route("/api/paypal/create-recharge-order", methods=["POST"])
+    def paypal_create_recharge_order():
+        """Crea una orden de PayPal para recargar saldo a una tarjeta."""
+        data = request.get_json(silent=True) or {}
+        card_code = data.get("card_code", "").strip()
+        amount = data.get("amount", 0)
+        if not card_code:
+            return jsonify({"error": "Falta el código de la tarjeta"}), 400
+        try:
+            amount = float(amount)
+        except (ValueError, TypeError):
+            return jsonify({"error": "Monto inválido"}), 400
+        if amount <= 0:
+            return jsonify({"error": "El monto debe ser mayor a $0"}), 400
+        card = Card.query.filter_by(code=card_code, is_active=True).first()
+        if not card:
+            return jsonify({"error": "Tarjeta no encontrada o inactiva"}), 404
+
+        if not HAS_PAYPAL:
+            return jsonify({"error": "El pago en línea aún no está configurado."}), 400
+
+        access_token = paypal_get_access_token()
+        if not access_token:
+            return jsonify({"error": "Error al conectar con PayPal. Intenta de nuevo."}), 500
+        try:
+            order_payload = {
+                "intent": "CAPTURE",
+                "purchase_units": [{
+                    "reference_id": f"recharge-{card.code}",
+                    "description": f"Recarga de saldo - Tarjeta {card_code}",
+                    "amount": {
+                        "currency_code": PAYPAL_CURRENCY,
+                        "value": f"{amount:.2f}",
+                    },
+                }],
+                "application_context": {
+                    "brand_name": "Júbilo",
+                    "user_action": "PAY_NOW",
+                },
+            }
+            resp = http_requests.post(
+                f"{PAYPAL_BASE}/v2/checkout/orders",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json",
+                },
+                json=order_payload,
+                timeout=30,
+            )
+            if resp.status_code in (200, 201):
+                order = resp.json()
+                if order.get("id"):
+                    return jsonify({"id": order["id"]})
+            logger.error(f"PayPal create recharge order error {resp.status_code}: {resp.text}")
+            _set_paypal_error("Error creando orden de recarga", resp.status_code, resp.text)
+            return jsonify({"error": "No se pudo crear la orden de PayPal. Intenta de nuevo."}), 500
+        except Exception as e:
+            logger.error(f"Error creando orden de recarga PayPal: {e}")
+            _set_paypal_error(f"Excepción creando orden de recarga: {e}")
+            return jsonify({"error": "Error al iniciar el pago. Intenta de nuevo."}), 500
+
+    @app.route("/api/paypal/capture-recharge-order", methods=["POST"])
+    def paypal_capture_recharge_order():
+        """Captura una orden de PayPal aprobada y recarga saldo a la tarjeta."""
+        data = request.get_json(silent=True) or {}
+        order_id = data.get("orderID") or data.get("order_id")
+        card_code = data.get("card_code", "").strip()
+        amount = data.get("amount", 0)
+        if not order_id or not card_code:
+            return jsonify({"error": "Faltan datos"}), 400
+        card = Card.query.filter_by(code=card_code, is_active=True).first()
+        if not card:
+            return jsonify({"error": "Tarjeta no encontrada o inactiva"}), 404
+
+        access_token = paypal_get_access_token()
+        if not access_token:
+            return jsonify({"error": "Error al confirmar el pago. Intenta de nuevo."}), 500
+        try:
+            resp = http_requests.post(
+                f"{PAYPAL_BASE}/v2/checkout/orders/{order_id}/capture",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json",
+                },
+                timeout=30,
+            )
+            if resp.status_code in (200, 201):
+                result = resp.json()
+                if result.get("status") == "COMPLETED":
+                    try:
+                        recharge_amount = float(amount)
+                    except (ValueError, TypeError):
+                        recharge_amount = 0
+                    if recharge_amount <= 0:
+                        return jsonify({"error": "Monto inválido"}), 400
+                    card.balance += recharge_amount
+                    card.add_transaction(recharge_amount, "carga", f"Recarga vía PayPal (${recharge_amount:.2f})")
+                    db.session.commit()
+                    upload_backup_to_drive_after_change()
+                    return jsonify({"ok": True, "new_balance": card.balance})
+                else:
+                    return jsonify({"error": "El pago no fue completado por PayPal"}), 400
+            logger.error(f"PayPal capture recharge error {resp.status_code}: {resp.text}")
+            _set_paypal_error("Error capturando recarga", resp.status_code, resp.text)
+            return jsonify({"error": "El pago no se pudo completar. Intenta de nuevo."}), 500
+        except Exception as e:
+            logger.error(f"Error capturando orden de recarga PayPal: {e}")
+            _set_paypal_error(f"Excepción capturando recarga: {e}")
+            return jsonify({"error": "Error al confirmar el pago. Intenta de nuevo."}), 500
+
     @app.route("/comprar/confirmacion")
     def comprar_confirmacion():
         """PayPal redirige aquí tras aprobar el pago. Captura la orden y crea la tarjeta."""
@@ -2460,8 +2573,8 @@ def create_app():
 
     @app.route("/compras/delete/<int:purchase_id>", methods=["POST"])
     def compras_delete(purchase_id):
-        """Elimina un registro de compra fallido/pendiente (solo superusuario).
-        No permite borrar compras pagadas para no perder la tarjeta asociada."""
+        """Elimina un registro de compra (solo superusuario).
+        Si tiene tarjeta asociada, la desactiva antes de borrar el registro."""
         if not session.get("admin_id"): return redirect(url_for("login"))
         if not session.get("is_superuser"):
             flash("Solo el superusuario puede eliminar compras", "error")
@@ -2470,9 +2583,12 @@ def create_app():
         if not purchase:
             flash("Compra no encontrada", "error")
             return redirect(url_for("compras"))
-        if purchase.status == "paid":
-            flash("No se puede eliminar una compra pagada", "error")
-            return redirect(url_for("compras"))
+        # Si tiene tarjeta asociada, desactivarla
+        if purchase.card_code:
+            card = Card.query.filter_by(code=purchase.card_code).first()
+            if card:
+                card.is_active = False
+                db.session.commit()
         db.session.delete(purchase)
         db.session.commit()
         upload_backup_to_drive_after_change()
@@ -2481,7 +2597,7 @@ def create_app():
 
     @app.route("/compras/delete-failed", methods=["POST"])
     def compras_delete_failed():
-        """Elimina todos los registros de compra fallidos (solo superusuario)."""
+        """Elimina todos los registros de compra fallidos/pendientes (solo superusuario)."""
         if not session.get("admin_id"): return redirect(url_for("login"))
         if not session.get("is_superuser"):
             flash("Solo el superusuario puede eliminar compras", "error")
