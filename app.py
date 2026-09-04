@@ -1158,6 +1158,10 @@ def create_app():
                 'discount_percent': card.membership_type.discount_percent,
                 'drinks_count': card.membership_type.drinks_count,
                 'grain_bags': card.membership_type.grain_bags,
+                'daily_benefit_enabled': card.membership_type.daily_benefit_enabled,
+                'daily_benefit_name': card.membership_type.daily_benefit_name,
+                'daily_benefit_price': card.membership_type.daily_benefit_price,
+                'daily_benefit_count': card.membership_type.daily_benefit_count,
                 'is_default': card.membership_type.is_default # Importante para ocultar vencimiento
             }
         

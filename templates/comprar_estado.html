@@ -85,6 +85,9 @@
                             {% if card.membership_type.grain_bags > 0 %}
                             <li>🌾 <strong>{{ card.membership_type.grain_bags }}</strong> Bolsas de grano</li>
                             {% endif %}
+                            {% if card.membership_type.daily_benefit_enabled %}
+                            <li>🎁 <strong>{{ card.membership_type.daily_benefit_name or 'Beneficio Diario' }}</strong>{% if card.membership_type.daily_benefit_price > 0 %} (${{ "%.2f"|format(card.membership_type.daily_benefit_price) }}){% endif %} · {{ card.membership_type.daily_benefit_count }}x/día</li>
+                            {% endif %}
                         </ul>
                     </div>
                     {% endif %}

@@ -86,6 +86,7 @@
                             ${{ "%.2f"|format(m.price) }} · 
                             {% if m.is_default %}⭐ Principal (Sin vencimiento){% else %}30 días de vigencia{% endif %}
                             {% if m.cashback_percent > 0 %} · {{ m.cashback_percent }}% Cashback{% endif %}
+                            {% if m.daily_benefit_enabled %} · 🎁 {{ m.daily_benefit_name or 'Beneficio diario' }}{% endif %}
                         </div>
                     </div>
                     {% if m.is_default %}

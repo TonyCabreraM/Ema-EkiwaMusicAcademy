@@ -64,6 +64,9 @@
                     {% if card.membership_type.grain_bags > 0 %}
                     <li>🌾 <strong>{{ card.membership_type.grain_bags }}</strong> Bolsas de grano</li>
                     {% endif %}
+                    {% if card.membership_type.daily_benefit_enabled %}
+                    <li>🎁 <strong>{{ card.membership_type.daily_benefit_name or 'Beneficio Diario' }}</strong>{% if card.membership_type.daily_benefit_price > 0 %} (${{ "%.2f"|format(card.membership_type.daily_benefit_price) }}){% endif %} · {{ card.membership_type.daily_benefit_count }}x/día</li>
+                    {% endif %}
                 </ul>
             </div>
             {% endif %}
@@ -227,6 +230,7 @@
                                     ${{ "%.2f"|format(m.price) }} · 
                                     {% if m.is_default %}⭐ Principal (Sin vencimiento){% else %}30 días de vigencia{% endif %}
                                     {% if m.cashback_percent > 0 %} · {{ m.cashback_percent }}% Cashback{% endif %}
+                                    {% if m.daily_benefit_enabled %} · 🎁 {{ m.daily_benefit_name or 'Beneficio diario' }}{% endif %}
                                 </div>
                             </div>
                             {% if m.is_default %}
