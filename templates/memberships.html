@@ -27,7 +27,7 @@
     /* Fila de beneficio diario (múltiples beneficios) */
     .daily-benefit-row {
         display: grid;
-        grid-template-columns: 1fr 1fr 1fr auto;
+        grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto;
         gap: 10px;
         align-items: end;
         margin-bottom: 10px;
@@ -36,9 +36,26 @@
         border: 1px solid var(--border);
         border-radius: 8px;
     }
+    .daily-benefit-row label {
+        min-width: 0;
+        font-size: 0.8rem;
+    }
+    .daily-benefit-row input {
+        min-width: 0;
+        width: 100%;
+    }
+    /* Campos numéricos (precio y veces/día) más compactos para no desbordar */
+    .daily-benefit-row input[type="number"] {
+        max-width: 110px;
+        padding: 0.5rem 0.6rem;
+        font-size: 0.9rem;
+    }
     @media (max-width: 600px) {
         .daily-benefit-row {
             grid-template-columns: 1fr;
+        }
+        .daily-benefit-row input[type="number"] {
+            max-width: 100%;
         }
     }
 </style>
