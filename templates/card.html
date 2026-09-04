@@ -217,9 +217,7 @@
                             <!-- Logo de la membresía -->
                             <div style="width: 50px; height: 50px; border-radius: 50%; border: 3px solid {{ m.badge_color }}; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #222;">
                                 {% if m.badge_icon %}
-                                {% set icon_path = m.badge_icon %}
-                                {% if icon_path.startswith('/') %}{% set icon_path = icon_path[1:] %}{% endif %}
-                                <img src="{{ url_for('static', filename=icon_path) }}" alt="{{ m.name }}" style="width: 40px; height: 40px; object-fit: contain;" onerror="this.style.display='none';this.parentElement.innerHTML='💎';">
+                                <img src="{{ m.badge_icon }}" alt="{{ m.name }}" style="width: 40px; height: 40px; object-fit: contain;" onerror="this.style.display='none';this.parentElement.innerHTML='💎';">
                                 {% else %}
                                 <span style="font-size: 20px;">💎</span>
                                 {% endif %}
