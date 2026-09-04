@@ -3,6 +3,32 @@
 {% block title %}Membresías · Júbilo{% endblock %}
 
 {% block content %}
+<style>
+    .daily-benefit-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 1rem;
+    }
+    .form-grid-3 {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 1rem;
+    }
+    .form-grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+    }
+    @media (max-width: 600px) {
+        .daily-benefit-grid,
+        .form-grid-3 {
+            grid-template-columns: 1fr;
+        }
+        .form-grid-2 {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
 <div class="page-header">
     <h1>💎 Gestión de Membresías</h1>
     <p class="muted">Define los planes de membresía, sus beneficios y porcentajes de cashback.</p>
@@ -20,7 +46,7 @@
             <textarea name="description" rows="3" placeholder="Ej. Acceso prioritario, descuentos especiales..."></textarea>
         </label>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+        <div class="form-grid-3">
             <label>Precio ($)
                 <input type="number" name="price" step="0.01" min="0" required placeholder="0.00">
             </label>
@@ -32,7 +58,7 @@
             </label>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+        <div class="form-grid-2">
             <label>Bebidas Incluidas (Mensuales)
                 <input type="number" name="drinks_count" min="0" value="0" placeholder="Ej. 4">
             </label>
@@ -47,7 +73,7 @@
                 <strong>Beneficio Diario Personalizado</strong>
             </label>
             <p class="small muted" style="margin: 0 0 10px 30px;">Un producto que el cliente puede canjear una o más veces al día.</p>
-            <div id="daily_benefit_fields_create" style="display: none; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+            <div id="daily_benefit_fields_create" class="daily-benefit-grid" style="display: none;">
                 <label>Nombre del Producto
                     <input type="text" name="daily_benefit_name" id="daily_benefit_name_create" placeholder="Ej. Pan dulce">
                 </label>
@@ -60,7 +86,7 @@
             </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+        <div class="form-grid-2">
             <label>Color del Distintivo y Textos
                 <input type="color" name="badge_color" value="#FFD700" style="width: 100%; height: 40px; border: none; cursor: pointer;">
             </label>
@@ -334,7 +360,7 @@ function openEditModal(id) {
                 <textarea id="editDesc" name="description" rows="2"></textarea>
             </label>
             
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+            <div class="form-grid-3">
                 <label>Precio ($)
                     <input type="number" id="editPrice" name="price" step="0.01" min="0" required>
                 </label>
@@ -346,7 +372,7 @@ function openEditModal(id) {
                 </label>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div class="form-grid-2">
                 <label>Bebidas
                     <input type="number" id="editDrinks" name="drinks_count" min="0">
                 </label>
@@ -361,7 +387,7 @@ function openEditModal(id) {
                     <strong>Beneficio Diario Personalizado</strong>
                 </label>
                 <p class="small muted" style="margin: 0 0 10px 30px;">Un producto que el cliente puede canjear una o más veces al día.</p>
-                <div id="daily_benefit_fields_edit" style="display: none; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                <div id="daily_benefit_fields_edit" class="daily-benefit-grid" style="display: none;">
                     <label>Nombre del Producto
                         <input type="text" name="daily_benefit_name" id="daily_benefit_name_edit" placeholder="Ej. Pan dulce">
                     </label>
@@ -543,7 +569,8 @@ function restoreEditSelections(iconFile, bgFile) {
 // Toggle daily benefit fields visibility
 function toggleDailyBenefit(prefix) {
     const enabled = document.getElementById('daily_benefit_enabled_' + prefix).checked;
-    document.getElementById('daily_benefit_fields_' + prefix).style.display = enabled ? 'grid' : 'none';
+    const el = document.getElementById('daily_benefit_fields_' + prefix);
+    el.style.display = enabled ? 'grid' : 'none';
 }
 </script>
 {% endblock %}
