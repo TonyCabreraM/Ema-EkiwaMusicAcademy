@@ -244,10 +244,11 @@
                     </div>
                 </div>
 
-                <!-- Sección de Canje de Beneficios (se mantiene igual) -->
-                {% if card.membership_type and (card.membership_type.drinks_count > 0 or card.membership_type.grain_bags > 0) %}
+                <!-- Sección de Canje de Beneficios -->
+                {% set has_benefits = (card.membership_type and (card.membership_type.drinks_count > 0 or card.membership_type.grain_bags > 0 or card.membership_type.daily_benefit_enabled)) %}
+                {% if has_benefits %}
                 <hr style="margin: 15px 0; border-top: 1px dashed var(--border);">
-                <h5>🎁 Beneficios del Mes</h5>
+                <h5>🎁 Beneficios</h5>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                     {% if card.membership_type.drinks_count > 0 %}
                     <div style="background: var(--bg); padding: 10px; border-radius: 6px; text-align: center; border: 1px solid var(--border);">
@@ -267,6 +268,20 @@
                         <p class="small">{{ card.grain_bags_redeemed_this_month or 0 }} / {{ card.membership_type.grain_bags }}</p>
                         <form method="POST" action="{{ url_for('redeem_grain', code=card.code) }}">
                             <button type="submit" class="btn btn-sm btn-primary" {% if (card.grain_bags_redeemed_this_month or 0) >= card.membership_type.grain_bags %}disabled{% endif %}>Canjear</button>
+                        </form>
+                    </div>
+                    {% endif %}
+
+                    {% if card.membership_type.daily_benefit_enabled %}
+                    <div style="background: var(--bg); padding: 10px; border-radius: 6px; text-align: center; border: 1px solid var(--border); grid-column: 1 / -1;">
+                        <span style="font-size: 1.5rem;">🎁</span>
+                        <p style="margin: 5px 0; font-weight: bold;">{{ card.membership_type.daily_benefit_name or 'Beneficio Diario' }}</p>
+                        <p class="small">{{ card.daily_benefit_redeemed_today or 0 }} / {{ card.membership_type.daily_benefit_count }} hoy</p>
+                        {% if card.membership_type.daily_benefit_price > 0 %}
+                        <p class="small" style="color: var(--muted); margin: 2px 0;">Precio: ${{ "%.2f"|format(card.membership_type.daily_benefit_price) }}</p>
+                        {% endif %}
+                        <form method="POST" action="{{ url_for('redeem_daily_benefit', code=card.code) }}">
+                            <button type="submit" class="btn btn-sm btn-primary" {% if (card.daily_benefit_redeemed_today or 0) >= card.membership_type.daily_benefit_count %}disabled{% endif %}>Canjear</button>
                         </form>
                     </div>
                     {% endif %}

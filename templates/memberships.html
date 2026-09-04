@@ -41,6 +41,25 @@
             </label>
         </div>
 
+        <div style="margin-top: 15px; padding: 12px; background: rgba(255, 107, 107, 0.1); border: 1px solid #FF6B6B; border-radius: 8px;">
+            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin: 0 0 10px 0;">
+                <input type="checkbox" name="daily_benefit_enabled" id="daily_benefit_enabled_create" onchange="toggleDailyBenefit('create')" style="width: 20px; height: 20px;">
+                <strong>Beneficio Diario Personalizado</strong>
+            </label>
+            <p class="small muted" style="margin: 0 0 10px 30px;">Un producto que el cliente puede canjear una o más veces al día.</p>
+            <div id="daily_benefit_fields_create" style="display: none; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                <label>Nombre del Producto
+                    <input type="text" name="daily_benefit_name" id="daily_benefit_name_create" placeholder="Ej. Pan dulce">
+                </label>
+                <label>Precio del Canje ($)
+                    <input type="number" name="daily_benefit_price" id="daily_benefit_price_create" step="0.01" min="0" value="0" placeholder="0.00">
+                </label>
+                <label>Veces al Día
+                    <input type="number" name="daily_benefit_count" id="daily_benefit_count_create" min="1" value="1" placeholder="1">
+                </label>
+            </div>
+        </div>
+
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
             <label>Color del Distintivo y Textos
                 <input type="color" name="badge_color" value="#FFD700" style="width: 100%; height: 40px; border: none; cursor: pointer;">
@@ -101,7 +120,7 @@
             <td>{% if m.is_default %}<span class="badge badge-green">⭐ Sí</span>{% else %}<span class="muted">No</span>{% endif %}</td>
             <td>
                 <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                    <button onclick="previewMembership({{ m.id }}, '{{ m.name }}', {{ m.price }}, {{ m.cashback_percent }}, {{ m.discount_percent }}, {{ m.drinks_count }}, {{ m.grain_bags }}, '{{ m.badge_icon if m.badge_icon else '' }}', '{{ m.badge_color }}', '{{ m.background_image if m.background_image else '' }}')" class="btn btn-sm">👁️ Ver</button>
+                    <button onclick="previewMembership({{ m.id }}, '{{ m.name }}', {{ m.price }}, {{ m.cashback_percent }}, {{ m.discount_percent }}, {{ m.drinks_count }}, {{ m.grain_bags }}, '{{ m.badge_icon if m.badge_icon else '' }}', '{{ m.badge_color }}', '{{ m.background_image if m.background_image else '' }}', {{ 'true' if m.daily_benefit_enabled else 'false' }}, '{{ m.daily_benefit_name or '' }}', {{ m.daily_benefit_price or 0 }}, {{ m.daily_benefit_count or 1 }})" class="btn btn-sm">👁️ Ver</button>
                     <button onclick="openEditModal({{ m.id }})" 
                             data-price="{{ m.price }}" 
                             data-cashback="{{ m.cashback_percent }}" 
@@ -112,6 +131,10 @@
                             data-icon="{{ m.badge_icon.split('/')[-1] if m.badge_icon else '' }}" 
                             data-bg="{{ m.background_image.split('/')[-1] if m.background_image else '' }}" 
                             data-default="{{ m.is_default }}"
+                            data-daily-enabled="{{ 'true' if m.daily_benefit_enabled else 'false' }}"
+                            data-daily-name="{{ m.daily_benefit_name or '' }}"
+                            data-daily-price="{{ m.daily_benefit_price or 0 }}"
+                            data-daily-count="{{ m.daily_benefit_count or 1 }}"
                             class="btn btn-sm btn-primary">✏️ Editar</button>
                     <form method="POST" action="{{ url_for('delete_membership', membership_id=m.id) }}"
                           style="display: inline;" onsubmit="return confirm('¿Eliminar este tipo de membresía?');">
@@ -147,20 +170,31 @@
                 <li style="margin-bottom: 8px;">✨ Cashback: <strong id="modalCashback" style="color: #FFD700;">0%</strong></li>
                 <li style="margin-bottom: 8px;">🏷️ Descuento Canjes: <strong id="modalDiscount" style="color: #FFD700;">0%</strong></li>
                 <li style="margin-bottom: 8px;">☕ Bebidas/Mes: <strong id="modalDrinks">0</strong></li>
-                <li>🌾 Bolsas de Grano: <strong id="modalGrain">0</strong></li>
+                <li style="margin-bottom: 8px;">🌾 Bolsas de Grano: <strong id="modalGrain">0</strong></li>
+                <li id="modalDailyBenefitRow" style="display:none; margin-bottom: 8px;">🎁 Beneficio Diario: <strong id="modalDailyBenefit"></strong></li>
             </ul>
         </div>
     </div>
 </div>
 
 <script>
-function previewMembership(id, name, price, cashback, discount, drinks, grain, badgeIcon, badgeColor, bgImage) {
+function previewMembership(id, name, price, cashback, discount, drinks, grain, badgeIcon, badgeColor, bgImage, dailyEnabled, dailyName, dailyPrice, dailyCount) {
     document.getElementById('modalName').textContent = name;
     document.getElementById('modalPrice').textContent = '$' + parseFloat(price).toFixed(2);
     document.getElementById('modalCashback').textContent = cashback + '%';
     document.getElementById('modalDiscount').textContent = discount + '%';
     document.getElementById('modalDrinks').textContent = drinks;
     document.getElementById('modalGrain').textContent = grain;
+    
+    // Beneficio diario
+    const dailyRow = document.getElementById('modalDailyBenefitRow');
+    const dailyText = document.getElementById('modalDailyBenefit');
+    if (dailyEnabled) {
+        dailyRow.style.display = 'block';
+        dailyText.textContent = dailyName + ' ($' + parseFloat(dailyPrice).toFixed(2) + ' x' + dailyCount + '/día)';
+    } else {
+        dailyRow.style.display = 'none';
+    }
     
     // Aplicar color a los textos destacados
     const highlights = document.querySelectorAll('#modalCashback, #modalDiscount');
@@ -245,6 +279,10 @@ function openEditModal(id) {
     const iconFile = btn.getAttribute('data-icon');
     const bgFile = btn.getAttribute('data-bg');
     const isDef = btn.getAttribute('data-default');
+    const dailyEnabled = btn.getAttribute('data-daily-enabled') === 'true';
+    const dailyName = btn.getAttribute('data-daily-name') || '';
+    const dailyPrice = btn.getAttribute('data-daily-price') || '0';
+    const dailyCount = btn.getAttribute('data-daily-count') || '1';
 
     document.getElementById('editForm').action = '/memberships/' + id + '/edit';
     document.getElementById('editName').value = name;
@@ -267,6 +305,16 @@ function openEditModal(id) {
     if (defaultCheckbox) {
         defaultCheckbox.checked = (isDef === 'True');
     }
+
+    // Beneficio diario
+    const dailyCb = document.getElementById('daily_benefit_enabled_edit');
+    if (dailyCb) {
+        dailyCb.checked = dailyEnabled;
+        toggleDailyBenefit('edit');
+    }
+    document.getElementById('daily_benefit_name_edit').value = dailyName;
+    document.getElementById('daily_benefit_price_edit').value = dailyPrice;
+    document.getElementById('daily_benefit_count_edit').value = dailyCount;
     
     document.getElementById('editModal').style.display = 'flex';
 }
@@ -305,6 +353,25 @@ function openEditModal(id) {
                 <label>Bolsas Grano
                     <input type="number" id="editGrain" name="grain_bags" min="0">
                 </label>
+            </div>
+
+            <div style="margin-top: 15px; padding: 12px; background: rgba(255, 107, 107, 0.1); border: 1px solid #FF6B6B; border-radius: 8px;">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin: 0 0 10px 0;">
+                    <input type="checkbox" name="daily_benefit_enabled" id="daily_benefit_enabled_edit" onchange="toggleDailyBenefit('edit')" style="width: 20px; height: 20px;">
+                    <strong>Beneficio Diario Personalizado</strong>
+                </label>
+                <p class="small muted" style="margin: 0 0 10px 30px;">Un producto que el cliente puede canjear una o más veces al día.</p>
+                <div id="daily_benefit_fields_edit" style="display: none; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                    <label>Nombre del Producto
+                        <input type="text" name="daily_benefit_name" id="daily_benefit_name_edit" placeholder="Ej. Pan dulce">
+                    </label>
+                    <label>Precio del Canje ($)
+                        <input type="number" name="daily_benefit_price" id="daily_benefit_price_edit" step="0.01" min="0" value="0" placeholder="0.00">
+                    </label>
+                    <label>Veces al Día
+                        <input type="number" name="daily_benefit_count" id="daily_benefit_count_edit" min="1" value="1" placeholder="1">
+                    </label>
+                </div>
             </div>
 
             <label>Color del Distintivo
@@ -471,6 +538,12 @@ function restoreEditSelections(iconFile, bgFile) {
         document.getElementById('edit_selected_bg').value = '';
         updatePreview('edit_bg_preview', '', 'bg');
     }
+}
+
+// Toggle daily benefit fields visibility
+function toggleDailyBenefit(prefix) {
+    const enabled = document.getElementById('daily_benefit_enabled_' + prefix).checked;
+    document.getElementById('daily_benefit_fields_' + prefix).style.display = enabled ? 'grid' : 'none';
 }
 </script>
 {% endblock %}

@@ -875,6 +875,10 @@ def create_app():
             discount_percent = float(request.form.get("discount_percent") or 0)
             drinks_count = int(request.form.get("drinks_count") or 0)
             grain_bags = int(request.form.get("grain_bags") or 0)
+            daily_benefit_enabled = request.form.get("daily_benefit_enabled") == "on"
+            daily_benefit_name = sanitize_input(request.form.get("daily_benefit_name", ""))
+            daily_benefit_price = float(request.form.get("daily_benefit_price") or 0)
+            daily_benefit_count = int(request.form.get("daily_benefit_count") or 1)
             badge_color = request.form.get("badge_color", "#FFD700")
             is_default = request.form.get("is_default") == "on"
             
@@ -897,6 +901,10 @@ def create_app():
                 discount_percent=discount_percent,
                 drinks_count=drinks_count,
                 grain_bags=grain_bags,
+                daily_benefit_enabled=daily_benefit_enabled,
+                daily_benefit_name=daily_benefit_name,
+                daily_benefit_price=daily_benefit_price,
+                daily_benefit_count=daily_benefit_count,
                 badge_icon=badge_icon_path,
                 badge_color=badge_color,
                 background_image=background_image_path,
@@ -934,6 +942,10 @@ def create_app():
         membership.discount_percent = float(request.form.get("discount_percent") or membership.discount_percent)
         membership.drinks_count = int(request.form.get("drinks_count") or membership.drinks_count)
         membership.grain_bags = int(request.form.get("grain_bags") or membership.grain_bags)
+        membership.daily_benefit_enabled = request.form.get("daily_benefit_enabled") == "on"
+        membership.daily_benefit_name = sanitize_input(request.form.get("daily_benefit_name", membership.daily_benefit_name or ""))
+        membership.daily_benefit_price = float(request.form.get("daily_benefit_price") or membership.daily_benefit_price or 0)
+        membership.daily_benefit_count = int(request.form.get("daily_benefit_count") or membership.daily_benefit_count or 1)
         membership.badge_color = request.form.get("badge_color", membership.badge_color)
         is_default = request.form.get("is_default") == "on"
         
@@ -1090,8 +1102,15 @@ def create_app():
     def view_card(code):
         card = Card.query.filter_by(code=code).first_or_404()
         
-        # Verificar si la membresía ha caducado y revertir a la principal
+        # Verificar si la membresa ha caducado y revertir a la principal
         check_and_revert_expired_memberships(card)
+
+        # Reiniciar contador de beneficio diario si es un da nuevo
+        today = datetime.now().date()
+        if card.daily_benefit_last_date and card.daily_benefit_last_date != today:
+            card.daily_benefit_redeemed_today = 0
+            card.daily_benefit_last_date = today
+            db.session.commit()
         
         is_admin = session.get("admin_id")
         wa_image_url = None
@@ -1857,6 +1876,60 @@ def create_app():
         else:
             flash(" No tienes una membresa activa que incluya bolsas de grano.", "error")
             
+        return redirect(url_for("view_card", code=code))
+
+    @app.route("/card/<code>/redeem-daily", methods=["POST"])
+    def redeem_daily_benefit(code):
+        if not session.get("admin_id"): return redirect(url_for("login"))
+        card = Card.query.filter_by(code=code).first_or_404()
+        now = datetime.now()
+        today = now.date()
+
+        # Verificar si hay membresa activa con beneficio diario habilitado
+        if not card.membership_type or not card.membership_expires_at or now > card.membership_expires_at:
+            flash("No tienes una membresa activa.", "error")
+            return redirect(url_for("view_card", code=code))
+
+        if not card.membership_type.daily_benefit_enabled:
+            flash("Tu membresa no incluye beneficio diario.", "error")
+            return redirect(url_for("view_card", code=code))
+
+        # Reiniciar contador si es un da nuevo
+        if card.daily_benefit_last_date != today:
+            card.daily_benefit_redeemed_today = 0
+            card.daily_benefit_last_date = today
+            db.session.commit()
+
+        # Verificar lmite diario
+        max_daily = card.membership_type.daily_benefit_count or 1
+        if card.daily_benefit_redeemed_today >= max_daily:
+            flash(f"Ya canjeaste este beneficio hoy ({card.daily_benefit_redeemed_today}/{max_daily} veces). Vuelve mañana.", "error")
+            return redirect(url_for("view_card", code=code))
+
+        # Verificar saldo suficiente (si hay precio de canje)
+        benefit_price = card.membership_type.daily_benefit_price or 0
+        if benefit_price > 0 and card.balance < benefit_price:
+            flash(f"Saldo insuficiente. Necesitas ${benefit_price:.2f} y tienes ${card.balance:.2f}.", "error")
+            return redirect(url_for("view_card", code=code))
+
+        # Realizar el canje
+        benefit_name = card.membership_type.daily_benefit_name or "Beneficio diario"
+        card.daily_benefit_redeemed_today += 1
+        card.daily_benefit_last_date = today
+
+        # Descontar saldo si hay precio
+        if benefit_price > 0:
+            card.balance -= benefit_price
+
+        card.add_transaction(
+            -benefit_price if benefit_price > 0 else 0,
+            "canje_diario",
+            f"{benefit_name} (diario {card.daily_benefit_redeemed_today}/{max_daily})"
+        )
+        db.session.commit()
+        upload_backup_to_drive_after_change()
+        flash(f"{benefit_name} canjeado ({card.daily_benefit_redeemed_today}/{max_daily} hoy).", "success")
+
         return redirect(url_for("view_card", code=code))
 
     @app.route("/card/<code>/transactions")

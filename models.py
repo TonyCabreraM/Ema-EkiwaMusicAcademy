@@ -71,6 +71,9 @@ class Card(db.Model):
     drinks_redeemed_this_month = db.Column(db.Integer, default=0)
     grain_bags_redeemed_this_month = db.Column(db.Integer, default=0)
     last_benefit_reset = db.Column(db.DateTime, nullable=True) # Para saber cuándo reiniciar los contadores
+    # Contador de beneficio diario
+    daily_benefit_redeemed_today = db.Column(db.Integer, default=0)
+    daily_benefit_last_date = db.Column(db.Date, nullable=True)
     
     # Relaciones
     transactions = db.relationship('Transaction', backref='card', lazy=True, cascade='all, delete-orphan')
@@ -177,6 +180,11 @@ class MembershipType(db.Model):
     discount_percent = db.Column(db.Float, nullable=False, default=0) # Descuento en canjes
     drinks_count = db.Column(db.Integer, nullable=False, default=0) # Bebidas incluidas mensuales
     grain_bags = db.Column(db.Integer, nullable=False, default=0) # Bolsas de grano de regalo
+    # Beneficio diario personalizado (ej. "Pan dulce gratis 1 vez al día")
+    daily_benefit_enabled = db.Column(db.Boolean, default=False)
+    daily_benefit_name = db.Column(db.String(120)) # Nombre del producto (ej. "Pan dulce")
+    daily_benefit_price = db.Column(db.Float, default=0) # Precio del canje
+    daily_benefit_count = db.Column(db.Integer, default=1) # Veces que se puede canjear al día
     badge_icon = db.Column(db.String(200)) # Ruta de la imagen del icono de la membresía
     badge_color = db.Column(db.String(20), nullable=False, default='#FFD700') # Color del borde y textos
     background_image = db.Column(db.String(200)) # Ruta o nombre de la imagen de fondo
