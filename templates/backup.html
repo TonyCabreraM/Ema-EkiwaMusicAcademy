@@ -34,7 +34,8 @@
             <div style="padding: 12px; border-radius: 8px; background: rgba(40,167,69,0.12); border: 1px solid rgba(40,167,69,0.4); margin: 12px 0;">
                 <strong style="color: #28a745;">✅ Conectado a Google Drive</strong>
                 <p class="muted" style="margin-top: 6px;">Los respaldos se guardan en la carpeta <code>JubiloBackups/JubiloQrDataBase</code> de tu Drive.</p>
-                <p class="muted" style="margin-top: 6px;">🔄 Al iniciar la aplicación, si la base de datos está vacía, se restaura automáticamente el último respaldo de Drive.</p>
+                <p class="muted" style="margin-top: 6px;">📥 Los respaldos de Drive <strong>no se cargan automáticamente</strong>. Usa el botón de abajo para ver y restaurar manualmente un respaldo.</p>
+                <button type="button" onclick="openDriveBackupModal()" class="btn btn-primary" style="margin-top: 12px;">⬇ Cargar Backup Drive</button>
             </div>
 
             <!-- Backup manual -->
@@ -141,4 +142,102 @@
         <li style="padding: 8px 0;">📈 <strong>{{ stats.movements }}</strong> movimientos de stock</li>
     </ul>
 </div>
+
+<!-- Modal: Cargar Backup desde Drive -->
+<div id="driveBackupModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:3000; align-items:center; justify-content:center; overflow-y:auto;">
+    <div style="background:var(--card); border-radius:16px; padding:2rem; max-width:640px; width:92%; position:relative; border:2px solid var(--border); margin:20px auto; max-height:90vh; overflow-y:auto; box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+        <button onclick="closeDriveBackupModal()" style="position:absolute; top:12px; right:16px; background:none; border:none; color:var(--muted); font-size:1.6rem; cursor:pointer; line-height:1;">✕</button>
+        <h3 style="color:var(--cream); margin:0 0 6px;">⬇ Cargar Backup desde Drive</h3>
+        <p class="muted" style="margin:0 0 18px; font-size:0.9rem;">Selecciona un respaldo de Google Drive para restaurarlo. Los datos se sumarán/actualizarán en la base actual.</p>
+
+        <div id="driveBackupLoading" style="text-align:center; padding:30px; color:var(--muted);">
+            <span style="font-size:1.4rem;">⏳</span> Cargando respaldos de Drive...
+        </div>
+
+        <div id="driveBackupError" style="display:none; padding:14px; border-radius:8px; background:rgba(199,91,57,0.12); border:1px solid rgba(199,91,57,0.4); color:#C75B39; margin-bottom:12px;"></div>
+
+        <div id="driveBackupList" style="display:none;"></div>
+
+        <div id="driveBackupEmpty" style="display:none; text-align:center; padding:30px; color:var(--muted);">
+            <span style="font-size:2rem;">📭</span>
+            <p style="margin-top:10px;">No hay respaldos en Google Drive todavía.<br>Sube uno con el botón "☁️ Subir respaldo a Drive ahora".</p>
+        </div>
+
+        <div style="margin-top:18px; text-align:right;">
+            <button onclick="closeDriveBackupModal()" class="btn btn-sm">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openDriveBackupModal() {
+    const modal = document.getElementById('driveBackupModal');
+    modal.style.display = 'flex';
+    document.getElementById('driveBackupLoading').style.display = 'block';
+    document.getElementById('driveBackupError').style.display = 'none';
+    document.getElementById('driveBackupList').style.display = 'none';
+    document.getElementById('driveBackupEmpty').style.display = 'none';
+
+    fetch('{{ url_for("backup_drive_list") }}')
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('driveBackupLoading').style.display = 'none';
+            if (data.error) {
+                const err = document.getElementById('driveBackupError');
+                err.textContent = '❌ ' + data.error;
+                err.style.display = 'block';
+                return;
+            }
+            const backups = data.backups || [];
+            if (backups.length === 0) {
+                document.getElementById('driveBackupEmpty').style.display = 'block';
+                return;
+            }
+            const list = document.getElementById('driveBackupList');
+            list.innerHTML = '';
+            backups.forEach(b => {
+                const item = document.createElement('div');
+                item.style.cssText = 'display:flex; align-items:center; gap:12px; padding:14px; margin:8px 0; border-radius:10px; background:var(--bg); border:1px solid var(--border);';
+                item.innerHTML = `
+                    <div style="width:42px; height:42px; border-radius:50%; background:linear-gradient(135deg, var(--primary), var(--primary-dark)); display:flex; align-items:center; justify-content:center; font-size:1.1rem; flex-shrink:0;">📄</div>
+                    <div style="flex:1; min-width:0;">
+                        <div style="font-weight:600; color:var(--text); word-break:break-all;">${escapeHtml(b.name)}</div>
+                        <div style="font-size:0.8rem; color:var(--muted);">${formatDriveDate(b.modified)}</div>
+                    </div>
+                    <form method="POST" action="{{ url_for('backup_drive_restore') }}" style="margin:0; flex-shrink:0;"
+                          onsubmit="return confirm('¿Restaurar este respaldo? Los datos se sumarán/actualizarán en la base actual.');">
+                        <input type="hidden" name="file_id" value="${escapeHtml(b.id)}">
+                        <button type="submit" class="btn btn-sm btn-primary">Restaurar</button>
+                    </form>
+                `;
+                list.appendChild(item);
+            });
+            list.style.display = 'block';
+        })
+        .catch(err => {
+            document.getElementById('driveBackupLoading').style.display = 'none';
+            const el = document.getElementById('driveBackupError');
+            el.textContent = '❌ Error al consultar Drive: ' + err.message;
+            el.style.display = 'block';
+        });
+}
+
+function closeDriveBackupModal() {
+    document.getElementById('driveBackupModal').style.display = 'none';
+}
+
+function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, function (m) {
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];
+    });
+}
+
+function formatDriveDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    const pad = n => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+</script>
 {% endblock %}

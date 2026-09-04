@@ -487,10 +487,10 @@ def create_app():
         except Exception as e:
             logger.error(f"[Drive] Error en restauración automática: {e}")
 
-    # Restauración automática desde Google Drive al iniciar (ACTIVA).
-    # Solo se restaura si la base está vacía. El auto-respaldo hacia Drive
-    # sigue desactivado (solo respaldos manuales).
-    restore_latest_backup_from_drive()
+    # La restauración automática desde Google Drive está DESACTIVADA.
+    # Los respaldos de Drive solo se cargan manualmente desde la página de Respaldos
+    # (botón "Cargar Backup Drive"). El auto-respaldo hacia Drive sigue desactivado
+    # (solo respaldos manuales).
 
     @app.context_processor
     def inject_push_config():
@@ -2996,6 +2996,63 @@ def create_app():
             db.session.add(AppSetting(key="drive_auto_backup_interval", value=interval))
         db.session.commit()
         flash(f"Intervalo de backup automático actualizado a {interval} segundos.", "success")
+        return redirect(url_for("backup"))
+
+    @app.route("/backup/drive/list")
+    def backup_drive_list():
+        """Lista los respaldos JSON disponibles en Google Drive (para el modal)."""
+        if not session.get("admin_id"): return redirect(url_for("login"))
+        if not session.get("is_superuser"):
+            return jsonify({"error": "No autorizado"}), 403
+        if not drive_backup.is_configured() or not drive_backup.is_connected():
+            return jsonify({"error": "Google Drive no está conectado."}), 400
+        try:
+            service = drive_backup.get_drive_service()
+            if not service:
+                return jsonify({"error": "No se pudo autenticar con Google Drive."}), 500
+            files = drive_backup.list_files_in_subfolder(service)
+            backups = []
+            for f in files:
+                name = f.get("name", "")
+                if name.startswith("backup_") and name.endswith(".json"):
+                    backups.append({
+                        "id": f["id"],
+                        "name": name,
+                        "modified": f.get("modifiedTime", "")
+                    })
+            return jsonify({"backups": backups})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/backup/drive/restore", methods=["POST"])
+    def backup_drive_restore():
+        """Restaura un respaldo específico seleccionado desde Google Drive."""
+        if not session.get("admin_id"): return redirect(url_for("login"))
+        if not session.get("is_superuser"):
+            flash("Solo el superusuario puede restaurar respaldos", "error")
+            return redirect(url_for("backup"))
+        file_id = request.form.get("file_id", "")
+        if not file_id:
+            flash("No se especificó un respaldo.", "error")
+            return redirect(url_for("backup"))
+        if not drive_backup.is_configured() or not drive_backup.is_connected():
+            flash("Google Drive no está conectado.", "error")
+            return redirect(url_for("backup"))
+        try:
+            service = drive_backup.get_drive_service()
+            if not service:
+                flash("No se pudo autenticar con Google Drive.", "error")
+                return redirect(url_for("backup"))
+            content = drive_backup.download_file_content(service, file_id)
+            data = json.loads(content.decode("utf-8"))
+            if "version" not in data or "cards" not in data:
+                flash("El respaldo de Drive es inválido.", "error")
+                return redirect(url_for("backup"))
+            summary = restore_backup_data(data)
+            flash(f"✅ Respaldo restaurado desde Drive: {summary['cards']} tarjetas, {summary['transactions']} transacciones, {summary['notifications']} notificaciones, {summary['admins']} usuarios, {summary['products']} productos, {summary['movements']} movimientos", "success")
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Error al restaurar desde Drive: {str(e)}", "error")
         return redirect(url_for("backup"))
 
     return app
