@@ -169,6 +169,11 @@ function generarQRGratis(planId) {
             if (btn) { btn.disabled = false; btn.textContent = '🎁 Generar mi QR'; }
             return;
         }
+        if (data.existing_card) {
+            alert('ℹ️ Este número ya tiene una tarjeta Júbilo. Te mostraremos tu tarjeta.');
+            window.location.href = '/card/' + encodeURIComponent(data.card_code);
+            return;
+        }
         alert('✅ ¡Tu membresía gratuita está activa!');
         window.location.href = '/comprar/estado?phone=' + encodeURIComponent(data.phone);
     }).catch(function(e) {
@@ -222,6 +227,11 @@ document.querySelectorAll('[id^="modal-contratar-"]').forEach(function(modal) {
                 body: JSON.stringify({ orderID: data.orderID })
             }).then(function(res) { return res.json(); }).then(function(details) {
                 if (details.error) { alert('❌ ' + details.error); return; }
+                if (details.existing_card) {
+                    alert('ℹ️ Este número ya tiene una tarjeta Júbilo. Te mostraremos tu tarjeta.');
+                    window.location.href = '/card/' + encodeURIComponent(details.card_code);
+                    return;
+                }
                 alert('✅ ¡Pago exitoso! Tu membresía está activa.');
                 window.location.href = '/comprar/estado?phone=' + encodeURIComponent(details.phone);
             });

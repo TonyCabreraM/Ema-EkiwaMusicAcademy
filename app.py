@@ -2317,7 +2317,12 @@ def create_app():
             if resp.status_code in (200, 201):
                 result = resp.json()
                 if result.get("status") == "COMPLETED" and purchase.status != "paid":
-                    create_card_from_purchase(purchase)
+                    card = create_card_from_purchase(purchase)
+                    if not card:
+                        # La tarjeta ya existía para este teléfono
+                        existing = Card.query.filter_by(phone=purchase.phone, is_active=True).first()
+                        if existing:
+                            return jsonify({"ok": True, "phone": purchase.phone, "existing_card": True, "card_code": existing.code})
                 return jsonify({"ok": True, "phone": purchase.phone})
             logger.error(f"PayPal capture error {resp.status_code}: {resp.text}")
             _set_paypal_error("Error capturando orden", resp.status_code, resp.text)
@@ -2342,10 +2347,10 @@ def create_app():
         if membership.price > 0:
             return jsonify({"error": "Esta membresía no es gratuita"}), 400
 
-        # Evitar duplicados: si el teléfono ya tiene una tarjeta activa, no crear otra
+        # Evitar duplicados: si el teléfono ya tiene una tarjeta activa, mostrarla
         existing = Card.query.filter_by(phone=phone, is_active=True).first()
         if existing:
-            return jsonify({"error": "Este número de teléfono ya tiene una tarjeta Júbilo activa."}), 409
+            return jsonify({"ok": True, "existing_card": True, "card_code": existing.code, "phone": phone})
 
         # Crear la solicitud de compra como pagada (gratuita)
         purchase = PurchaseRequest(
@@ -2361,7 +2366,11 @@ def create_app():
         # Crear la tarjeta con QR
         card = create_card_from_purchase(purchase)
         if not card:
-            return jsonify({"error": "Este número de teléfono ya tiene una tarjeta Júbilo activa."}), 409
+            # La tarjeta ya existía (detección tardía)
+            existing = Card.query.filter_by(phone=phone, is_active=True).first()
+            if existing:
+                return jsonify({"ok": True, "existing_card": True, "card_code": existing.code, "phone": phone})
+            return jsonify({"error": "No se pudo crear la tarjeta. Intenta de nuevo."}), 500
         return jsonify({"ok": True, "card_code": card.code, "phone": purchase.phone})
 
     @app.route("/api/paypal/create-recharge-order", methods=["POST"])
