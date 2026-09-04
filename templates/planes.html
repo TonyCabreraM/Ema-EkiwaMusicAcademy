@@ -58,7 +58,10 @@
                 {% if m.grain_bags > 0 %}
                 <li style="margin-bottom: 8px;">🌾 Bolsas de grano: <strong>{{ m.grain_bags }}</strong></li>
                 {% endif %}
-                {% if m.cashback_percent == 0 and m.discount_percent == 0 and m.drinks_count == 0 and m.grain_bags == 0 %}
+                {% if m.daily_benefit_enabled %}
+                <li style="margin-bottom: 8px;">🎁 Beneficio diario: <strong style="color: {{ m.badge_color }};">{{ m.daily_benefit_name }}</strong>{% if m.daily_benefit_price > 0 %} (${{ "%.2f"|format(m.daily_benefit_price) }}){% endif %} · {{ m.daily_benefit_count }}x/día</li>
+                {% endif %}
+                {% if m.cashback_percent == 0 and m.discount_percent == 0 and m.drinks_count == 0 and m.grain_bags == 0 and not m.daily_benefit_enabled %}
                 <li style="color: var(--muted);">Sin beneficios adicionales</li>
                 {% endif %}
             </ul>
