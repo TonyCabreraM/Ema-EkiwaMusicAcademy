@@ -110,48 +110,7 @@ def create_app():
             if existing:
                 return
             with app.app_context():
-                data = {
-                    "version": "1.3",
-                    "exported_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-                    "cards": [{"code": c.code, "client_name": c.client_name, "phone": c.phone,
-                               "balance": float(c.balance), "is_active": c.is_active,
-                               "custom_message": c.custom_message,
-                               "membership_type_id": c.membership_type_id,
-                               "membership_expires_at": c.membership_expires_at.strftime("%Y-%m-%d %H:%M:%S") if c.membership_expires_at else None,
-                               "drinks_redeemed_this_month": c.drinks_redeemed_this_month,
-                               "grain_bags_redeemed_this_month": c.grain_bags_redeemed_this_month,
-                               "last_benefit_reset": c.last_benefit_reset.strftime("%Y-%m-%d %H:%M:%S") if c.last_benefit_reset else None,
-                               "created_at": c.created_at.strftime("%Y-%m-%d %H:%M:%S") if c.created_at else None}
-                              for c in Card.query.all()],
-                    "transactions": [{"card_code": (Card.query.filter_by(id=t.card_id).first().code if Card.query.filter_by(id=t.card_id).first() else None),
-                                      "type": t.type, "amount": float(t.amount), "note": t.note,
-                                      "created_at": t.created_at.strftime("%Y-%m-%d %H:%M:%S") if t.created_at else None}
-                                     for t in Transaction.query.all()],
-                    "notifications": [{"title": n.title, "message": n.message, "image_url": n.image_url,
-                                       "link_url": n.link_url,
-                                       "created_at": n.created_at.strftime("%Y-%m-%d %H:%M:%S") if n.created_at else None}
-                                      for n in Notification.query.all()],
-                    "admins": [{"username": a.username, "password_hash": a.password_hash,
-                                "is_superuser": a.is_superuser, "is_marketing": a.is_marketing}
-                               for a in Admin.query.all()],
-                    "membership_types": [{"id": m.id, "name": m.name, "description": m.description,
-                                          "price": m.price, "cashback_percent": m.cashback_percent,
-                                          "discount_percent": m.discount_percent,
-                                          "drinks_count": m.drinks_count, "grain_bags": m.grain_bags,
-                                          "badge_icon": m.badge_icon, "badge_color": m.badge_color,
-                                          "background_image": m.background_image, "is_active": m.is_active,
-                                          "daily_benefits": [b.to_dict() for b in m.daily_benefits]}
-                                         for m in MembershipType.query.all()],
-                    "products": [{"id": p.id, "name": p.name, "description": p.description,
-                                  "cost": float(p.cost), "price": float(p.price),
-                                  "quantity": p.quantity, "reorder_point": p.reorder_point,
-                                  "image_url": p.image_url}
-                                 for p in Product.query.all()],
-                    "product_movements": [{"id": m.id, "product_id": m.product_id, "change": m.change,
-                                           "movement_type": m.movement_type, "note": m.note,
-                                           "created_at": m.created_at.strftime("%Y-%m-%d %H:%M:%S") if m.created_at else None}
-                                          for m in ProductMovement.query.all()],
-                }
+                data = collect_backup_data()
                 filename = f"auto_{today}_{datetime.utcnow().strftime('%H%M%S')}.json"
                 filepath = os.path.join(backup_dir, filename)
                 with open(filepath, "w", encoding="utf-8") as f:
@@ -167,52 +126,101 @@ def create_app():
         except Exception as e:
             logger.error(f"Error creando respaldo automático: {e}")
 
-    create_auto_backup()
-
     def collect_backup_data():
-        """Recopila todos los datos de la app en un dict (para respaldos)."""
+        """Recopila TODOS los datos de la app en un dict (para respaldos).
+        Incluye todas las tablas (tarjetas, transacciones, notificaciones, usuarios,
+        membresías, beneficios diarios, canjes diarios, compras en línea, suscripciones
+        push, productos, movimientos de stock y configuración) para una copia completa.
+        Cada registro incluye su id para poder restaurar sin duplicar."""
         return {
-            "version": "1.3",
+            "version": "1.4",
             "exported_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-            "cards": [{"code": c.code, "client_name": c.client_name, "phone": c.phone,
-                       "balance": float(c.balance), "is_active": c.is_active,
-                       "custom_message": c.custom_message,
-                       "membership_type_id": c.membership_type_id,
-                       "membership_expires_at": c.membership_expires_at.strftime("%Y-%m-%d %H:%M:%S") if c.membership_expires_at else None,
-                       "drinks_redeemed_this_month": c.drinks_redeemed_this_month,
-                       "grain_bags_redeemed_this_month": c.grain_bags_redeemed_this_month,
-                       "last_benefit_reset": c.last_benefit_reset.strftime("%Y-%m-%d %H:%M:%S") if c.last_benefit_reset else None,
-                       "created_at": c.created_at.strftime("%Y-%m-%d %H:%M:%S") if c.created_at else None}
-                      for c in Card.query.all()],
-            "transactions": [{"card_code": (Card.query.filter_by(id=t.card_id).first().code if Card.query.filter_by(id=t.card_id).first() else None),
-                              "type": t.type, "amount": float(t.amount), "note": t.note,
-                              "created_at": t.created_at.strftime("%Y-%m-%d %H:%M:%S") if t.created_at else None}
-                             for t in Transaction.query.all()],
-            "notifications": [{"title": n.title, "message": n.message, "image_url": n.image_url,
-                               "link_url": n.link_url,
-                               "created_at": n.created_at.strftime("%Y-%m-%d %H:%M:%S") if n.created_at else None}
-                              for n in Notification.query.all()],
-            "admins": [{"username": a.username, "password_hash": a.password_hash,
-                        "is_superuser": a.is_superuser, "is_marketing": a.is_marketing}
-                       for a in Admin.query.all()],
-            "membership_types": [{"id": m.id, "name": m.name, "description": m.description,
-                                  "price": m.price, "cashback_percent": m.cashback_percent,
-                                  "discount_percent": m.discount_percent,
-                                  "drinks_count": m.drinks_count, "grain_bags": m.grain_bags,
-                                  "badge_icon": m.badge_icon, "badge_color": m.badge_color,
-                                  "background_image": m.background_image, "is_active": m.is_active,
-                                  "daily_benefits": [b.to_dict() for b in m.daily_benefits]}
-                                 for m in MembershipType.query.all()],
-            "products": [{"id": p.id, "name": p.name, "description": p.description,
-                          "cost": float(p.cost), "price": float(p.price),
-                          "quantity": p.quantity, "reorder_point": p.reorder_point,
-                          "image_url": p.image_url}
-                         for p in Product.query.all()],
-            "product_movements": [{"id": m.id, "product_id": m.product_id, "change": m.change,
-                                   "movement_type": m.movement_type, "note": m.note,
-                                   "created_at": m.created_at.strftime("%Y-%m-%d %H:%M:%S") if m.created_at else None}
-                                  for m in ProductMovement.query.all()],
+            "cards": [{
+                "id": c.id,
+                "code": c.code, "client_name": c.client_name, "phone": c.phone,
+                "balance": float(c.balance), "is_active": c.is_active,
+                "custom_message": c.custom_message,
+                "membership_type_id": c.membership_type_id,
+                "membership_expires_at": c.membership_expires_at.strftime("%Y-%m-%d %H:%M:%S") if c.membership_expires_at else None,
+                "drinks_redeemed_this_month": c.drinks_redeemed_this_month,
+                "grain_bags_redeemed_this_month": c.grain_bags_redeemed_this_month,
+                "last_benefit_reset": c.last_benefit_reset.strftime("%Y-%m-%d %H:%M:%S") if c.last_benefit_reset else None,
+                "daily_benefit_redeemed_today": c.daily_benefit_redeemed_today,
+                "daily_benefit_last_date": c.daily_benefit_last_date.strftime("%Y-%m-%d") if c.daily_benefit_last_date else None,
+                "created_at": c.created_at.strftime("%Y-%m-%d %H:%M:%S") if c.created_at else None,
+                "updated_at": c.updated_at.strftime("%Y-%m-%d %H:%M:%S") if c.updated_at else None,
+            } for c in Card.query.all()],
+            "transactions": [{
+                "id": t.id,
+                "card_id": t.card_id,
+                "card_code": (Card.query.filter_by(id=t.card_id).first().code if Card.query.filter_by(id=t.card_id).first() else None),
+                "type": t.type, "amount": float(t.amount), "note": t.note,
+                "created_at": t.created_at.strftime("%Y-%m-%d %H:%M:%S") if t.created_at else None,
+            } for t in Transaction.query.all()],
+            "notifications": [{
+                "id": n.id,
+                "title": n.title, "message": n.message, "image_url": n.image_url,
+                "link_url": n.link_url, "created_by_id": n.created_by_id,
+                "created_at": n.created_at.strftime("%Y-%m-%d %H:%M:%S") if n.created_at else None,
+            } for n in Notification.query.all()],
+            "admins": [{
+                "id": a.id, "username": a.username, "password_hash": a.password_hash,
+                "is_superuser": a.is_superuser, "is_marketing": a.is_marketing,
+                "created_at": a.created_at.strftime("%Y-%m-%d %H:%M:%S") if a.created_at else None,
+                "last_login": a.last_login.strftime("%Y-%m-%d %H:%M:%S") if a.last_login else None,
+            } for a in Admin.query.all()],
+            "membership_types": [{
+                "id": m.id, "name": m.name, "description": m.description,
+                "price": m.price, "cashback_percent": m.cashback_percent,
+                "discount_percent": m.discount_percent,
+                "drinks_count": m.drinks_count, "grain_bags": m.grain_bags,
+                "daily_benefit_enabled": m.daily_benefit_enabled,
+                "daily_benefit_name": m.daily_benefit_name,
+                "daily_benefit_price": m.daily_benefit_price,
+                "daily_benefit_count": m.daily_benefit_count,
+                "badge_icon": m.badge_icon, "badge_color": m.badge_color,
+                "background_image": m.background_image, "is_active": m.is_active,
+                "is_default": m.is_default,
+                "created_at": m.created_at.strftime("%Y-%m-%d %H:%M:%S") if m.created_at else None,
+                "daily_benefits": [b.to_dict() for b in m.daily_benefits],
+            } for m in MembershipType.query.all()],
+            "daily_benefit_redemptions": [{
+                "id": r.id, "card_id": r.card_id, "daily_benefit_id": r.daily_benefit_id,
+                "date": r.date.strftime("%Y-%m-%d") if r.date else None,
+                "redeemed_count": r.redeemed_count,
+            } for r in DailyBenefitRedemption.query.all()],
+            "purchase_requests": [{
+                "id": p.id, "client_name": p.client_name, "phone": p.phone,
+                "membership_type_id": p.membership_type_id, "status": p.status,
+                "stripe_session_id": p.stripe_session_id, "amount": float(p.amount),
+                "card_code": p.card_code,
+                "created_at": p.created_at.strftime("%Y-%m-%d %H:%M:%S") if p.created_at else None,
+                "paid_at": p.paid_at.strftime("%Y-%m-%d %H:%M:%S") if p.paid_at else None,
+            } for p in PurchaseRequest.query.all()],
+            "push_subscriptions": [{
+                "id": s.id, "endpoint": s.endpoint, "p256dh": s.p256dh, "auth": s.auth,
+                "created_at": s.created_at.strftime("%Y-%m-%d %H:%M:%S") if s.created_at else None,
+            } for s in PushSubscription.query.all()],
+            "products": [{
+                "id": p.id, "name": p.name, "description": p.description,
+                "cost": float(p.cost), "price": float(p.price),
+                "quantity": p.quantity, "reorder_point": p.reorder_point,
+                "image_url": p.image_url,
+                "created_at": p.created_at.strftime("%Y-%m-%d %H:%M:%S") if p.created_at else None,
+                "updated_at": p.updated_at.strftime("%Y-%m-%d %H:%M:%S") if p.updated_at else None,
+            } for p in Product.query.all()],
+            "product_movements": [{
+                "id": m.id, "product_id": m.product_id, "change": m.change,
+                "movement_type": m.movement_type, "note": m.note,
+                "created_at": m.created_at.strftime("%Y-%m-%d %H:%M:%S") if m.created_at else None,
+            } for m in ProductMovement.query.all()],
+            "app_settings": [{
+                "key": s.key, "value": s.value,
+                "updated_at": s.updated_at.strftime("%Y-%m-%d %H:%M:%S") if s.updated_at else None,
+            } for s in AppSetting.query.all()],
         }
+
+    create_auto_backup()
 
     def upload_backup_to_drive_after_change():
         """Genera un respaldo completo y lo sube a Google Drive.
@@ -320,34 +328,57 @@ def create_app():
                 existing_m.discount_percent = md["discount_percent"]
                 existing_m.drinks_count = md["drinks_count"]
                 existing_m.grain_bags = md.get("grain_bags", 0)
+                existing_m.daily_benefit_enabled = md.get("daily_benefit_enabled", False)
+                existing_m.daily_benefit_name = md.get("daily_benefit_name")
+                existing_m.daily_benefit_price = md.get("daily_benefit_price", 0)
+                existing_m.daily_benefit_count = md.get("daily_benefit_count", 1)
                 existing_m.badge_icon = badge_icon_path
                 existing_m.badge_color = md.get("badge_color", "#FFD700")
                 existing_m.background_image = bg_image_path
                 existing_m.is_active = md.get("is_active", True)
-                # Restaurar beneficios diarios (reemplazar lista)
-                for b in existing_m.daily_benefits:
-                    db.session.delete(b)
+                existing_m.is_default = md.get("is_default", False)
+                # Restaurar beneficios diarios preservando ids (para no duplicar
+                # ni romper los canjes diarios que los referencian)
+                backup_benefit_ids = [bd.get("id") for bd in md.get("daily_benefits", []) if bd.get("id")]
+                for b in list(existing_m.daily_benefits):
+                    if b.id not in backup_benefit_ids:
+                        for r in DailyBenefitRedemption.query.filter_by(daily_benefit_id=b.id).all():
+                            db.session.delete(r)
+                        db.session.delete(b)
                 for bd in md.get("daily_benefits", []):
-                    db.session.add(DailyBenefit(
-                        membership_type_id=existing_m.id,
-                        name=bd.get("name", "Beneficio diario"),
-                        price=bd.get("price", 0),
-                        count=bd.get("count", 1)
-                    ))
+                    existing_b = DailyBenefit.query.filter_by(id=bd.get("id")).first() if bd.get("id") else None
+                    if existing_b:
+                        existing_b.name = bd.get("name", "Beneficio diario")
+                        existing_b.price = bd.get("price", 0)
+                        existing_b.count = bd.get("count", 1)
+                    else:
+                        db.session.add(DailyBenefit(
+                            id=bd.get("id"),
+                            membership_type_id=existing_m.id,
+                            name=bd.get("name", "Beneficio diario"),
+                            price=bd.get("price", 0),
+                            count=bd.get("count", 1)
+                        ))
             else:
                 new_m = MembershipType(
                     id=md["id"], name=md["name"], description=md["description"],
                     price=md["price"], cashback_percent=md["cashback_percent"],
                     discount_percent=md["discount_percent"], drinks_count=md["drinks_count"],
                     grain_bags=md.get("grain_bags", 0),
+                    daily_benefit_enabled=md.get("daily_benefit_enabled", False),
+                    daily_benefit_name=md.get("daily_benefit_name"),
+                    daily_benefit_price=md.get("daily_benefit_price", 0),
+                    daily_benefit_count=md.get("daily_benefit_count", 1),
                     badge_icon=badge_icon_path,
                     badge_color=md.get("badge_color", "#FFD700"),
-                    background_image=bg_image_path, is_active=md.get("is_active", True)
+                    background_image=bg_image_path, is_active=md.get("is_active", True),
+                    is_default=md.get("is_default", False)
                 )
                 db.session.add(new_m)
                 db.session.flush()  # Para obtener new_m.id
                 for bd in md.get("daily_benefits", []):
                     db.session.add(DailyBenefit(
+                        id=bd.get("id"),
                         membership_type_id=new_m.id,
                         name=bd.get("name", "Beneficio diario"),
                         price=bd.get("price", 0),
@@ -371,9 +402,13 @@ def create_app():
                 existing.grain_bags_redeemed_this_month = cd.get("grain_bags_redeemed_this_month", 0)
                 last_reset = cd.get("last_benefit_reset")
                 existing.last_benefit_reset = datetime.strptime(last_reset, "%Y-%m-%d %H:%M:%S") if last_reset else None
+                existing.daily_benefit_redeemed_today = cd.get("daily_benefit_redeemed_today", 0)
+                dl_date = cd.get("daily_benefit_last_date")
+                existing.daily_benefit_last_date = datetime.strptime(dl_date, "%Y-%m-%d").date() if dl_date else None
             else:
                 mem_exp = cd.get("membership_expires_at")
                 last_reset = cd.get("last_benefit_reset")
+                dl_date = cd.get("daily_benefit_last_date")
                 db.session.add(Card(
                     code=cd["code"], client_name=cd["client_name"],
                     phone=cd["phone"], balance=cd["balance"],
@@ -382,24 +417,57 @@ def create_app():
                     membership_expires_at=datetime.strptime(mem_exp, "%Y-%m-%d %H:%M:%S") if mem_exp else None,
                     drinks_redeemed_this_month=cd.get("drinks_redeemed_this_month", 0),
                     grain_bags_redeemed_this_month=cd.get("grain_bags_redeemed_this_month", 0),
-                    last_benefit_reset=datetime.strptime(last_reset, "%Y-%m-%d %H:%M:%S") if last_reset else None
+                    last_benefit_reset=datetime.strptime(last_reset, "%Y-%m-%d %H:%M:%S") if last_reset else None,
+                    daily_benefit_redeemed_today=cd.get("daily_benefit_redeemed_today", 0),
+                    daily_benefit_last_date=datetime.strptime(dl_date, "%Y-%m-%d").date() if dl_date else None
                 ))
             cards_imported += 1
 
+        # Mapa de id de tarjeta (fuente) -> id real en la base (destino)
+        # para restaurar canjes diarios sin romper referencias
+        card_id_map = {}
+        for cd in data.get("cards", []):
+            c = Card.query.filter_by(code=cd["code"]).first()
+            if c:
+                card_id_map[cd.get("id")] = c.id
+
         tx_imported = 0
         for td in data.get("transactions", []):
+            # Evitar duplicados: si el respaldo trae id, verificar por id
+            tx_id = td.get("id")
+            if tx_id:
+                existing_tx = Transaction.query.filter_by(id=tx_id).first()
+                if existing_tx:
+                    continue  # ya existe, no duplicar
             card = Card.query.filter_by(code=td["card_code"]).first()
             if card:
-                db.session.add(Transaction(card_id=card.id, type=td["type"],
-                    amount=td["amount"], note=td.get("note")))
+                db.session.add(Transaction(
+                    id=tx_id,
+                    card_id=card.id, type=td["type"],
+                    amount=td["amount"], note=td.get("note"),
+                    created_at=datetime.strptime(td["created_at"], "%Y-%m-%d %H:%M:%S") if td.get("created_at") else None
+                ))
                 tx_imported += 1
 
         not_imported = 0
         for nd in data.get("notifications", []):
-            db.session.add(Notification(title=nd["title"], message=nd["message"],
+            # Evitar duplicados: verificar por id
+            n_id = nd.get("id")
+            if n_id:
+                existing_n = Notification.query.filter_by(id=n_id).first()
+                if existing_n:
+                    continue  # ya existe, no duplicar
+            created_by_id = nd.get("created_by_id")
+            if created_by_id and not Admin.query.filter_by(id=created_by_id).first():
+                created_by_id = session.get("admin_id") if has_request_context() else None
+            db.session.add(Notification(
+                id=n_id,
+                title=nd["title"], message=nd["message"],
                 image_url=nd.get("image_url"),
                 link_url=nd.get("link_url"),
-                created_by_id=session.get("admin_id") if has_request_context() else None))
+                created_by_id=created_by_id,
+                created_at=datetime.strptime(nd["created_at"], "%Y-%m-%d %H:%M:%S") if nd.get("created_at") else None
+            ))
             not_imported += 1
 
         admins_imported = 0
@@ -446,9 +514,85 @@ def create_app():
                 db.session.add(ProductMovement(
                     id=md["id"], product_id=md["product_id"],
                     change=md["change"], movement_type=md.get("movement_type", "sale"),
-                    note=md.get("note")
+                    note=md.get("note"),
+                    created_at=datetime.strptime(md["created_at"], "%Y-%m-%d %H:%M:%S") if md.get("created_at") else None
                 ))
                 movements_imported += 1
+
+        redemptions_imported = 0
+        for rd in data.get("daily_benefit_redemptions", []):
+            r_id = rd.get("id")
+            target_card_id = card_id_map.get(rd["card_id"], rd["card_id"])
+            existing_r = DailyBenefitRedemption.query.filter_by(id=r_id).first() if r_id else None
+            if existing_r:
+                existing_r.card_id = target_card_id
+                existing_r.daily_benefit_id = rd["daily_benefit_id"]
+                existing_r.date = datetime.strptime(rd["date"], "%Y-%m-%d").date() if rd.get("date") else None
+                existing_r.redeemed_count = rd.get("redeemed_count", 0)
+            else:
+                db.session.add(DailyBenefitRedemption(
+                    id=r_id,
+                    card_id=target_card_id,
+                    daily_benefit_id=rd["daily_benefit_id"],
+                    date=datetime.strptime(rd["date"], "%Y-%m-%d").date() if rd.get("date") else None,
+                    redeemed_count=rd.get("redeemed_count", 0)
+                ))
+            redemptions_imported += 1
+
+        purchases_imported = 0
+        for pd in data.get("purchase_requests", []):
+            p_id = pd.get("id")
+            existing_p = PurchaseRequest.query.filter_by(id=p_id).first() if p_id else None
+            if existing_p:
+                existing_p.client_name = pd["client_name"]
+                existing_p.phone = pd["phone"]
+                existing_p.membership_type_id = pd.get("membership_type_id")
+                existing_p.status = pd.get("status", "pending")
+                existing_p.stripe_session_id = pd.get("stripe_session_id")
+                existing_p.amount = pd.get("amount", 0)
+                existing_p.card_code = pd.get("card_code")
+                paid_at = pd.get("paid_at")
+                existing_p.paid_at = datetime.strptime(paid_at, "%Y-%m-%d %H:%M:%S") if paid_at else None
+            else:
+                paid_at = pd.get("paid_at")
+                db.session.add(PurchaseRequest(
+                    id=p_id,
+                    client_name=pd["client_name"], phone=pd["phone"],
+                    membership_type_id=pd.get("membership_type_id"),
+                    status=pd.get("status", "pending"),
+                    stripe_session_id=pd.get("stripe_session_id"),
+                    amount=pd.get("amount", 0),
+                    card_code=pd.get("card_code"),
+                    paid_at=datetime.strptime(paid_at, "%Y-%m-%d %H:%M:%S") if paid_at else None
+                ))
+            purchases_imported += 1
+
+        subs_imported = 0
+        for sd in data.get("push_subscriptions", []):
+            endpoint = sd.get("endpoint")
+            existing_s = PushSubscription.query.filter_by(endpoint=endpoint).first() if endpoint else None
+            if existing_s:
+                existing_s.p256dh = sd.get("p256dh", existing_s.p256dh)
+                existing_s.auth = sd.get("auth", existing_s.auth)
+            else:
+                db.session.add(PushSubscription(
+                    endpoint=endpoint,
+                    p256dh=sd.get("p256dh", ""),
+                    auth=sd.get("auth", "")
+                ))
+            subs_imported += 1
+
+        settings_imported = 0
+        for sd in data.get("app_settings", []):
+            key = sd.get("key")
+            if not key:
+                continue
+            existing_s = AppSetting.query.filter_by(key=key).first()
+            if existing_s:
+                existing_s.value = sd.get("value")
+            else:
+                db.session.add(AppSetting(key=key, value=sd.get("value")))
+            settings_imported += 1
 
         db.session.commit()
         return {
@@ -458,6 +602,10 @@ def create_app():
             "admins": admins_imported,
             "products": products_imported,
             "movements": movements_imported,
+            "redemptions": redemptions_imported,
+            "purchases": purchases_imported,
+            "subscriptions": subs_imported,
+            "settings": settings_imported,
         }
 
     def restore_latest_backup_from_drive():
@@ -2768,7 +2916,11 @@ def create_app():
             "admins": Admin.query.count(),
             "memberships": MembershipType.query.count(),
             "products": Product.query.count(),
-            "movements": ProductMovement.query.count()
+            "movements": ProductMovement.query.count(),
+            "redemptions": DailyBenefitRedemption.query.count(),
+            "purchases": PurchaseRequest.query.count(),
+            "subscriptions": PushSubscription.query.count(),
+            "settings": AppSetting.query.count()
         }
         drive_status = {
             "configured": drive_backup.is_configured(),
@@ -2787,123 +2939,42 @@ def create_app():
         if not session.get("admin_id"): return redirect(url_for("login"))
         if not session.get("is_superuser"):
             return jsonify({"error": "No autorizado"}), 403
-        
-        cards = Card.query.all()
-        # Incluir tipos de membresa en el backup
-        membership_types = MembershipType.query.all()
-        memberships_data = []
-        for m in membership_types:
-            # Convertir imgenes a Base64 para guardarlas en el JSON
+
+        # Usa collect_backup_data() para incluir TODAS las tablas (tarjetas,
+        # transacciones, notificaciones, usuarios, membresías, beneficios diarios,
+        # canjes diarios, compras en línea, suscripciones push, productos,
+        # movimientos de stock y configuración) sin duplicar nada.
+        backup_data = collect_backup_data()
+
+        # Incluir imágenes de membresías en Base64 para poder restaurarlas
+        for m in MembershipType.query.all():
             badge_icon_b64 = None
             bg_image_b64 = None
-            
+
             if m.badge_icon:
                 try:
                     icon_path = os.path.join(base_dir, m.badge_icon.lstrip('/'))
                     if os.path.exists(icon_path):
                         with open(icon_path, "rb") as f:
                             badge_icon_b64 = base64.b64encode(f.read()).decode('utf-8')
-                except: pass
-                
+                except Exception:
+                    pass
+
             if m.background_image:
                 try:
                     bg_path = os.path.join(base_dir, m.background_image.lstrip('/'))
                     if os.path.exists(bg_path):
                         with open(bg_path, "rb") as f:
                             bg_image_b64 = base64.b64encode(f.read()).decode('utf-8')
-                except: pass
+                except Exception:
+                    pass
 
-            memberships_data.append({
-                "id": m.id,
-                "name": m.name,
-                "description": m.description,
-                "price": m.price,
-                "cashback_percent": m.cashback_percent,
-                "discount_percent": m.discount_percent,
-                "drinks_count": m.drinks_count,
-                "grain_bags": m.grain_bags,
-                "badge_icon": m.badge_icon,
-                "badge_icon_b64": badge_icon_b64,
-                "badge_color": m.badge_color,
-                "background_image": m.background_image,
-                "background_image_b64": bg_image_b64,
-                "is_active": m.is_active,
-                "daily_benefits": [b.to_dict() for b in m.daily_benefits]
-            })
+            for md in backup_data["membership_types"]:
+                if md["id"] == m.id:
+                    md["badge_icon_b64"] = badge_icon_b64
+                    md["background_image_b64"] = bg_image_b64
+                    break
 
-        cards_data = [{
-            "code": c.code, "client_name": c.client_name, "phone": c.phone,
-            "balance": float(c.balance), "is_active": c.is_active,
-            "custom_message": c.custom_message,
-            "membership_type_id": c.membership_type_id,
-            "membership_expires_at": c.membership_expires_at.strftime("%Y-%m-%d %H:%M:%S") if c.membership_expires_at else None,
-            "drinks_redeemed_this_month": c.drinks_redeemed_this_month,
-            "grain_bags_redeemed_this_month": c.grain_bags_redeemed_this_month,
-            "last_benefit_reset": c.last_benefit_reset.strftime("%Y-%m-%d %H:%M:%S") if c.last_benefit_reset else None,
-            "created_at": c.created_at.strftime("%Y-%m-%d %H:%M:%S") if c.created_at else None
-        } for c in cards]
-        
-        transactions = Transaction.query.all()
-        transactions_data = []
-        for t in transactions:
-            card = Card.query.filter_by(id=t.card_id).first()
-            transactions_data.append({
-                "card_code": card.code if card else None,
-                "type": t.type, "amount": float(t.amount), "note": t.note,
-                "created_at": t.created_at.strftime("%Y-%m-%d %H:%M:%S") if t.created_at else None
-            })
-        
-        notifications = Notification.query.all()
-        notifications_data = [{
-            "title": n.title, "message": n.message,
-            "image_url": n.image_url,
-            "link_url": n.link_url,
-            "created_at": n.created_at.strftime("%Y-%m-%d %H:%M:%S") if n.created_at else None
-        } for n in notifications]
-        
-        # Incluir usuarios (Admin) en el backup
-        admins = Admin.query.all()
-        admins_data = [{
-            "username": a.username,
-            "password_hash": a.password_hash,
-            "is_superuser": a.is_superuser,
-            "is_marketing": a.is_marketing,
-            "created_at": a.created_at.strftime("%Y-%m-%d %H:%M:%S") if a.created_at else None,
-            "last_login": a.last_login.strftime("%Y-%m-%d %H:%M:%S") if a.last_login else None
-        } for a in admins]
-
-        # Incluir productos del inventario en el backup
-        products = Product.query.all()
-        products_data = [{
-            "id": p.id,
-            "name": p.name, "description": p.description,
-            "cost": float(p.cost), "price": float(p.price),
-            "quantity": p.quantity, "reorder_point": p.reorder_point,
-            "image_url": p.image_url,
-            "created_at": p.created_at.strftime("%Y-%m-%d %H:%M:%S") if p.created_at else None,
-            "updated_at": p.updated_at.strftime("%Y-%m-%d %H:%M:%S") if p.updated_at else None
-        } for p in products]
-
-        # Incluir movimientos de stock en el backup
-        movements = ProductMovement.query.all()
-        movements_data = [{
-            "id": m.id,
-            "product_id": m.product_id,
-            "change": m.change,
-            "movement_type": m.movement_type,
-            "note": m.note,
-            "created_at": m.created_at.strftime("%Y-%m-%d %H:%M:%S") if m.created_at else None
-        } for m in movements]
-
-        backup_data = {
-            "version": "1.3",
-            "exported_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-            "cards": cards_data, "transactions": transactions_data,
-            "notifications": notifications_data, "admins": admins_data,
-            "membership_types": memberships_data,
-            "products": products_data, "product_movements": movements_data
-        }
-        
         return Response(
             json.dumps(backup_data, indent=2, ensure_ascii=False),
             mimetype="application/json",
@@ -2936,7 +3007,7 @@ def create_app():
             
             summary = restore_backup_data(data)
             upload_backup_to_drive_after_change()
-            flash(f"Respaldo importado: {summary['cards']} tarjetas, {summary['transactions']} transacciones, {summary['notifications']} notificaciones, {summary['admins']} usuarios, {summary['products']} productos, {summary['movements']} movimientos", "success")
+            flash(f"Respaldo importado: {summary['cards']} tarjetas, {summary['transactions']} transacciones, {summary['notifications']} notificaciones, {summary['admins']} usuarios, {summary['products']} productos, {summary['movements']} movimientos, {summary['redemptions']} canjes diarios, {summary['purchases']} compras, {summary['subscriptions']} suscripciones, {summary['settings']} configuraciones", "success")
         except Exception as e:
             db.session.rollback()
             flash(f"Error al importar: {str(e)}", "error")
@@ -3049,7 +3120,7 @@ def create_app():
                 flash("El respaldo de Drive es inválido.", "error")
                 return redirect(url_for("backup"))
             summary = restore_backup_data(data)
-            flash(f"✅ Respaldo restaurado desde Drive: {summary['cards']} tarjetas, {summary['transactions']} transacciones, {summary['notifications']} notificaciones, {summary['admins']} usuarios, {summary['products']} productos, {summary['movements']} movimientos", "success")
+            flash(f"✅ Respaldo restaurado desde Drive: {summary['cards']} tarjetas, {summary['transactions']} transacciones, {summary['notifications']} notificaciones, {summary['admins']} usuarios, {summary['products']} productos, {summary['movements']} movimientos, {summary['redemptions']} canjes diarios, {summary['purchases']} compras, {summary['subscriptions']} suscripciones, {summary['settings']} configuraciones", "success")
         except Exception as e:
             db.session.rollback()
             flash(f"Error al restaurar desde Drive: {str(e)}", "error")
