@@ -4,29 +4,25 @@
 
 {% block content %}
 <style>
-    .daily-benefit-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        gap: 1rem;
-    }
-    .form-grid-3 {
-        display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        gap: 1rem;
-    }
+    .daily-benefit-grid,
+    .form-grid-3,
     .form-grid-2 {
         display: grid;
-        grid-template-columns: 1fr 1fr;
         gap: 1rem;
+        min-width: 0;
     }
-    @media (max-width: 600px) {
-        .daily-benefit-grid,
-        .form-grid-3 {
-            grid-template-columns: 1fr;
-        }
-        .form-grid-2 {
-            grid-template-columns: 1fr;
-        }
+    .daily-benefit-grid,
+    .form-grid-3 {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+    .form-grid-2 {
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    }
+    /* Evitar que los inputs desborden su columna en pantallas pequeñas */
+    .daily-benefit-grid > *,
+    .form-grid-3 > *,
+    .form-grid-2 > * {
+        min-width: 0;
     }
 </style>
 <div class="page-header">
