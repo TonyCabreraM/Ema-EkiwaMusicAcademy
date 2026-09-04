@@ -186,6 +186,14 @@
 
             <button type="submit" class="btn btn-primary btn-block">💾 Guardar producto</button>
         </form>
+
+        <hr style="border: none; border-top: 1px solid var(--border); margin: 24px 0;">
+
+        <div style="text-align: center;">
+            <h3 style="margin-bottom: 0.5rem;">📥 Importar desde Excel</h3>
+            <p class="muted" style="margin-bottom: 1rem;">Crea o actualiza varios productos de una sola vez subiendo un archivo Excel.</p>
+            <button type="button" class="btn btn-primary" onclick="openExcelModal()">📥 Cargar archivo Excel</button>
+        </div>
     </div>
 </div>
 
@@ -368,6 +376,59 @@
     </div>
 </div>
 
+<!-- Modal de importación Excel -->
+<div id="excelModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.8); z-index:3000; align-items:center; justify-content:center; overflow-y:auto;">
+    <div style="background:var(--card); border-radius:16px; padding:2rem; max-width:640px; width:90%; position:relative; border: 2px solid var(--border); margin: 20px auto; max-height: 90vh; overflow-y: auto;">
+        <button onclick="closeExcelModal()" style="position:absolute; top:10px; right:15px; background:none; border:none; color:white; font-size:1.5rem; cursor:pointer;">✕</button>
+        <h3 style="margin-bottom: 1rem;">📥 Importar productos desde Excel</h3>
+        <p class="muted" style="margin-bottom: 1rem;">Sube un archivo <strong>.xlsx</strong> con las siguientes columnas:</p>
+        <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 1rem; font-size: 0.9rem;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <th style="text-align:left; padding:6px;">Columna</th>
+                    <th style="text-align:left; padding:6px;">Contenido</th>
+                    <th style="text-align:left; padding:6px;">Campo</th>
+                </tr>
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding:6px;">1</td>
+                    <td style="padding:6px;">Artículo</td>
+                    <td style="padding:6px;">Nombre</td>
+                </tr>
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding:6px;">2</td>
+                    <td style="padding:6px;">Presentación</td>
+                    <td style="padding:6px;">Descripción</td>
+                </tr>
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding:6px;">3</td>
+                    <td style="padding:6px;">Cantidad de comprar más cuando queden</td>
+                    <td style="padding:6px;">Punto de reorden</td>
+                </tr>
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding:6px;">4</td>
+                    <td style="padding:6px;">(se ignora)</td>
+                    <td style="padding:6px;">—</td>
+                </tr>
+                <tr>
+                    <td style="padding:6px;">5</td>
+                    <td style="padding:6px;">Existencias</td>
+                    <td style="padding:6px;">Cantidad en stock</td>
+                </tr>
+            </table>
+        </div>
+        <p class="muted" style="margin-bottom: 1rem;">Si un artículo ya existe por nombre, se <strong>actualiza</strong> su descripción, stock y punto de reorden. La primera fila se omite si es de encabezados.</p>
+        <form method="POST" action="{{ url_for('inventory_import_excel') }}" enctype="multipart/form-data" id="excelForm">
+            <label>Archivo Excel (.xlsx)
+                <input type="file" name="file" id="excelFile" accept=".xlsx,.xlsm" required>
+            </label>
+            <div style="margin-top: 20px; display: flex; gap: 10px;">
+                <button type="submit" class="btn btn-primary" style="flex: 1;">📥 Importar</button>
+                <button type="button" class="btn" onclick="closeExcelModal()">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Modal de edición -->
 <div id="editModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.8); z-index:3000; align-items:center; justify-content:center; overflow-y:auto;">
     <div style="background:var(--card); border-radius:16px; padding:2rem; max-width:600px; width:90%; position:relative; border: 2px solid var(--border); margin: 20px auto; max-height: 90vh; overflow-y: auto;">
@@ -434,6 +495,14 @@ function switchTab(tab) {
             btn.classList.remove('btn-primary');
         }
     });
+}
+
+// Modal de importación Excel
+function openExcelModal() {
+    document.getElementById('excelModal').style.display = 'flex';
+}
+function closeExcelModal() {
+    document.getElementById('excelModal').style.display = 'none';
 }
 
 // Vista previa de imagen al agregar producto

@@ -6,6 +6,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from models import db, Admin, Card, Transaction, Notification, PushSubscription, MembershipType, DailyBenefit, DailyBenefitRedemption, Product, ProductMovement, AppSetting, PurchaseRequest, generate_unique_code, init_db
 from utils import get_logger, generate_qr_image, generate_deep_link, sanitize_input, generate_whatsapp_image
 import drive_backup
+import openpyxl  # Lectura de archivos Excel para importar inventario
 import requests as http_requests  # HTTP para PayPal API
 from dotenv import load_dotenv
 
@@ -1867,6 +1868,119 @@ def create_app():
         return render_template("inventory.html", products=products,
                                out_of_stock=out_of_stock, low_stock=low_stock,
                                stats=stats)
+
+    @app.route("/inventory/import-excel", methods=["POST"])
+    def inventory_import_excel():
+        """Importa productos desde un archivo Excel (.xlsx).
+        Formato de columnas:
+          1 = Artículo (nombre)
+          2 = Presentación (descripción)
+          3 = Comprar más cuando queden (punto de reorden)
+          4 = (se ignora)
+          5 = Existencias (cantidad en stock)
+        Si un artículo ya existe por nombre, se actualiza (descripción, stock y
+        punto de reorden). Los nuevos se crean con coste/precio en 0."""
+        if not session.get("admin_id"): return redirect(url_for("login"))
+
+        file = request.files.get("file")
+        if not file or not file.filename:
+            flash("Selecciona un archivo Excel (.xlsx)", "error")
+            return redirect(url_for("inventory"))
+
+        filename = file.filename.lower()
+        if not (filename.endswith(".xlsx") or filename.endswith(".xlsm")):
+            flash("El archivo debe ser .xlsx", "error")
+            return redirect(url_for("inventory"))
+
+        try:
+            wb = openpyxl.load_workbook(io.BytesIO(file.read()), data_only=True)
+            ws = wb.active
+        except Exception as e:
+            flash(f"No se pudo leer el archivo Excel: {str(e)}", "error")
+            return redirect(url_for("inventory"))
+
+        def parse_int(value):
+            if value is None or isinstance(value, bool):
+                return None
+            if isinstance(value, (int, float)):
+                return int(value)
+            s = str(value).strip().replace(",", "")
+            try:
+                return int(float(s))
+            except (ValueError, TypeError):
+                return None
+
+        created = 0
+        updated = 0
+        skipped = 0
+        first_row = True
+
+        for row in ws.iter_rows(min_row=1, values_only=True):
+            # Asegurar que la fila tenga al menos 5 celdas
+            cells = list(row) + [None] * (5 - len(row))
+            name = str(cells[0]).strip() if cells[0] is not None else ""
+            description = str(cells[1]).strip() if cells[1] is not None else ""
+            reorder = parse_int(cells[2])
+            quantity = parse_int(cells[4])
+
+            # Detectar fila de encabezados (primera fila con texto en columnas numéricas)
+            if first_row:
+                first_row = False
+                if name and reorder is None and quantity is None:
+                    continue  # es la fila de encabezados
+
+            if not name:
+                skipped += 1
+                continue
+            if reorder is None:
+                reorder = 0
+            if quantity is None:
+                quantity = 0
+            if quantity < 0:
+                quantity = 0
+
+            existing = Product.query.filter_by(name=name).first()
+            if existing:
+                old_qty = existing.quantity
+                existing.description = description or existing.description
+                existing.reorder_point = reorder
+                existing.quantity = quantity
+                if quantity != old_qty:
+                    db.session.add(ProductMovement(
+                        product_id=existing.id,
+                        change=quantity - old_qty,
+                        movement_type='adjustment',
+                        note='Ajuste por importación Excel'
+                    ))
+                updated += 1
+            else:
+                product = Product(
+                    name=name,
+                    description=description or None,
+                    cost=0,
+                    price=0,
+                    quantity=quantity,
+                    reorder_point=reorder
+                )
+                db.session.add(product)
+                db.session.flush()
+                if quantity > 0:
+                    db.session.add(ProductMovement(
+                        product_id=product.id, change=quantity,
+                        movement_type='restock', note='Stock inicial (importación Excel)'
+                    ))
+                created += 1
+
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Error al guardar los productos: {str(e)}", "error")
+            return redirect(url_for("inventory"))
+
+        upload_backup_to_drive_after_change()
+        flash(f"📥 Importación completada: {created} creados, {updated} actualizados, {skipped} filas vacías omitidas", "success")
+        return redirect(url_for("inventory"))
 
     @app.route("/inventory/<int:product_id>/edit", methods=["POST"])
     def edit_product(product_id):
