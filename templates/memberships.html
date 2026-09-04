@@ -24,6 +24,23 @@
     .form-grid-2 > * {
         min-width: 0;
     }
+    /* Fila de beneficio diario (múltiples beneficios) */
+    .daily-benefit-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr auto;
+        gap: 10px;
+        align-items: end;
+        margin-bottom: 10px;
+        padding: 12px;
+        background: rgba(0,0,0,0.2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+    }
+    @media (max-width: 600px) {
+        .daily-benefit-row {
+            grid-template-columns: 1fr;
+        }
+    }
 </style>
 <div class="page-header">
     <h1>💎 Gestión de Membresías</h1>
@@ -66,19 +83,12 @@
         <div style="margin-top: 15px; padding: 12px; background: rgba(255, 107, 107, 0.1); border: 1px solid #FF6B6B; border-radius: 8px;">
             <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin: 0 0 10px 0;">
                 <input type="checkbox" name="daily_benefit_enabled" id="daily_benefit_enabled_create" onchange="toggleDailyBenefit('create')" style="width: 20px; height: 20px;">
-                <strong>Beneficio Diario Personalizado</strong>
+                <strong>Beneficios Diarios Personalizados</strong>
             </label>
-            <p class="small muted" style="margin: 0 0 10px 30px;">Un producto que el cliente puede canjear una o más veces al día.</p>
-            <div id="daily_benefit_fields_create" class="daily-benefit-grid" style="display: none;">
-                <label>Nombre del Producto
-                    <input type="text" name="daily_benefit_name" id="daily_benefit_name_create" placeholder="Ej. Pan dulce">
-                </label>
-                <label>Precio del Canje ($)
-                    <input type="number" name="daily_benefit_price" id="daily_benefit_price_create" step="0.01" min="0" value="0" placeholder="0.00">
-                </label>
-                <label>Veces al Día
-                    <input type="number" name="daily_benefit_count" id="daily_benefit_count_create" min="1" value="1" placeholder="1">
-                </label>
+            <p class="small muted" style="margin: 0 0 10px 30px;">Productos que el cliente puede canjear una o más veces al día. Puedes agregar varios beneficios diarios diferentes.</p>
+            <div id="daily_benefit_fields_create" style="display: none;">
+                <div id="daily_benefit_rows_create"></div>
+                <button type="button" onclick="addDailyBenefitRow('create')" class="btn btn-sm" style="margin-top: 10px;">➕ Agregar beneficio diario</button>
             </div>
         </div>
 
@@ -142,7 +152,19 @@
             <td>{% if m.is_default %}<span class="badge badge-green">⭐ Sí</span>{% else %}<span class="muted">No</span>{% endif %}</td>
             <td>
                 <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                    <button onclick="previewMembership({{ m.id }}, '{{ m.name }}', {{ m.price }}, {{ m.cashback_percent }}, {{ m.discount_percent }}, {{ m.drinks_count }}, {{ m.grain_bags }}, '{{ m.badge_icon if m.badge_icon else '' }}', '{{ m.badge_color }}', '{{ m.background_image if m.background_image else '' }}', {{ 'true' if m.daily_benefit_enabled else 'false' }}, '{{ m.daily_benefit_name or '' }}', {{ m.daily_benefit_price or 0 }}, {{ m.daily_benefit_count or 1 }})" class="btn btn-sm">👁️ Ver</button>
+                    <button onclick="previewMembership(this)" 
+                            data-id="{{ m.id }}" 
+                            data-name="{{ m.name }}" 
+                            data-price="{{ m.price }}" 
+                            data-cashback="{{ m.cashback_percent }}" 
+                            data-discount="{{ m.discount_percent }}" 
+                            data-drinks="{{ m.drinks_count }}" 
+                            data-grain="{{ m.grain_bags }}" 
+                            data-icon="{{ m.badge_icon if m.badge_icon else '' }}" 
+                            data-color="{{ m.badge_color }}" 
+                            data-bg="{{ m.background_image if m.background_image else '' }}" 
+                            data-daily-benefits='{{ m.daily_benefits_data|tojson }}' 
+                            class="btn btn-sm">👁️ Ver</button>
                     <button onclick="openEditModal({{ m.id }})" 
                             data-price="{{ m.price }}" 
                             data-cashback="{{ m.cashback_percent }}" 
@@ -153,10 +175,7 @@
                             data-icon="{{ m.badge_icon.split('/')[-1] if m.badge_icon else '' }}" 
                             data-bg="{{ m.background_image.split('/')[-1] if m.background_image else '' }}" 
                             data-default="{{ m.is_default }}"
-                            data-daily-enabled="{{ 'true' if m.daily_benefit_enabled else 'false' }}"
-                            data-daily-name="{{ m.daily_benefit_name or '' }}"
-                            data-daily-price="{{ m.daily_benefit_price or 0 }}"
-                            data-daily-count="{{ m.daily_benefit_count or 1 }}"
+                            data-daily-benefits='{{ m.daily_benefits_data|tojson }}'
                             class="btn btn-sm btn-primary">✏️ Editar</button>
                     <form method="POST" action="{{ url_for('delete_membership', membership_id=m.id) }}"
                           style="display: inline;" onsubmit="return confirm('¿Eliminar este tipo de membresía?');">
@@ -193,14 +212,27 @@
                 <li style="margin-bottom: 8px;">🏷️ Descuento Canjes: <strong id="modalDiscount" style="color: #FFD700;">0%</strong></li>
                 <li style="margin-bottom: 8px;">☕ Bebidas/Mes: <strong id="modalDrinks">0</strong></li>
                 <li style="margin-bottom: 8px;">🌾 Bolsas de Grano: <strong id="modalGrain">0</strong></li>
-                <li id="modalDailyBenefitRow" style="display:none; margin-bottom: 8px;">🎁 Beneficio Diario: <strong id="modalDailyBenefit"></strong></li>
             </ul>
+            <div id="modalDailyBenefitList" style="margin-top: 8px;"></div>
         </div>
     </div>
 </div>
 
 <script>
-function previewMembership(id, name, price, cashback, discount, drinks, grain, badgeIcon, badgeColor, bgImage, dailyEnabled, dailyName, dailyPrice, dailyCount) {
+function previewMembership(btn) {
+    const id = btn.getAttribute('data-id');
+    const name = btn.getAttribute('data-name');
+    const price = btn.getAttribute('data-price');
+    const cashback = btn.getAttribute('data-cashback');
+    const discount = btn.getAttribute('data-discount');
+    const drinks = btn.getAttribute('data-drinks');
+    const grain = btn.getAttribute('data-grain');
+    const badgeIcon = btn.getAttribute('data-icon');
+    const badgeColor = btn.getAttribute('data-color');
+    const bgImage = btn.getAttribute('data-bg');
+    let dailyBenefits = [];
+    try { dailyBenefits = JSON.parse(btn.getAttribute('data-daily-benefits') || '[]'); } catch(e) { dailyBenefits = []; }
+
     document.getElementById('modalName').textContent = name;
     document.getElementById('modalPrice').textContent = '$' + parseFloat(price).toFixed(2);
     document.getElementById('modalCashback').textContent = cashback + '%';
@@ -208,14 +240,19 @@ function previewMembership(id, name, price, cashback, discount, drinks, grain, b
     document.getElementById('modalDrinks').textContent = drinks;
     document.getElementById('modalGrain').textContent = grain;
     
-    // Beneficio diario
-    const dailyRow = document.getElementById('modalDailyBenefitRow');
-    const dailyText = document.getElementById('modalDailyBenefit');
-    if (dailyEnabled) {
-        dailyRow.style.display = 'block';
-        dailyText.textContent = dailyName + ' ($' + parseFloat(dailyPrice).toFixed(2) + ' x' + dailyCount + '/día)';
-    } else {
-        dailyRow.style.display = 'none';
+    // Beneficios diarios (múltiples)
+    const dailyList = document.getElementById('modalDailyBenefitList');
+    dailyList.innerHTML = '';
+    if (dailyBenefits.length > 0) {
+        dailyBenefits.forEach(function(b) {
+            const div = document.createElement('div');
+            div.style.marginBottom = '8px';
+            let txt = '🎁 Beneficio diario: <strong>' + b.name + '</strong>';
+            if (parseFloat(b.price) > 0) txt += ' ($' + parseFloat(b.price).toFixed(2) + ')';
+            txt += ' · ' + b.count + 'x/día';
+            div.innerHTML = txt;
+            dailyList.appendChild(div);
+        });
     }
     
     // Aplicar color a los textos destacados
@@ -301,10 +338,8 @@ function openEditModal(id) {
     const iconFile = btn.getAttribute('data-icon');
     const bgFile = btn.getAttribute('data-bg');
     const isDef = btn.getAttribute('data-default');
-    const dailyEnabled = btn.getAttribute('data-daily-enabled') === 'true';
-    const dailyName = btn.getAttribute('data-daily-name') || '';
-    const dailyPrice = btn.getAttribute('data-daily-price') || '0';
-    const dailyCount = btn.getAttribute('data-daily-count') || '1';
+    let dailyBenefits = [];
+    try { dailyBenefits = JSON.parse(btn.getAttribute('data-daily-benefits') || '[]'); } catch(e) { dailyBenefits = []; }
 
     document.getElementById('editForm').action = '/memberships/' + id + '/edit';
     document.getElementById('editName').value = name;
@@ -328,15 +363,19 @@ function openEditModal(id) {
         defaultCheckbox.checked = (isDef === 'True');
     }
 
-    // Beneficio diario
+    // Beneficios diarios (múltiples)
     const dailyCb = document.getElementById('daily_benefit_enabled_edit');
     if (dailyCb) {
-        dailyCb.checked = dailyEnabled;
+        dailyCb.checked = dailyBenefits.length > 0;
         toggleDailyBenefit('edit');
     }
-    document.getElementById('daily_benefit_name_edit').value = dailyName;
-    document.getElementById('daily_benefit_price_edit').value = dailyPrice;
-    document.getElementById('daily_benefit_count_edit').value = dailyCount;
+    const rowsContainer = document.getElementById('daily_benefit_rows_edit');
+    if (rowsContainer) {
+        rowsContainer.innerHTML = '';
+        dailyBenefits.forEach(function(b) {
+            addDailyBenefitRow('edit', b.name, b.price, b.count);
+        });
+    }
     
     document.getElementById('editModal').style.display = 'flex';
 }
@@ -380,19 +419,12 @@ function openEditModal(id) {
             <div style="margin-top: 15px; padding: 12px; background: rgba(255, 107, 107, 0.1); border: 1px solid #FF6B6B; border-radius: 8px;">
                 <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin: 0 0 10px 0;">
                     <input type="checkbox" name="daily_benefit_enabled" id="daily_benefit_enabled_edit" onchange="toggleDailyBenefit('edit')" style="width: 20px; height: 20px;">
-                    <strong>Beneficio Diario Personalizado</strong>
+                    <strong>Beneficios Diarios Personalizados</strong>
                 </label>
-                <p class="small muted" style="margin: 0 0 10px 30px;">Un producto que el cliente puede canjear una o más veces al día.</p>
-                <div id="daily_benefit_fields_edit" class="daily-benefit-grid" style="display: none;">
-                    <label>Nombre del Producto
-                        <input type="text" name="daily_benefit_name" id="daily_benefit_name_edit" placeholder="Ej. Pan dulce">
-                    </label>
-                    <label>Precio del Canje ($)
-                        <input type="number" name="daily_benefit_price" id="daily_benefit_price_edit" step="0.01" min="0" value="0" placeholder="0.00">
-                    </label>
-                    <label>Veces al Día
-                        <input type="number" name="daily_benefit_count" id="daily_benefit_count_edit" min="1" value="1" placeholder="1">
-                    </label>
+                <p class="small muted" style="margin: 0 0 10px 30px;">Productos que el cliente puede canjear una o más veces al día. Puedes agregar varios beneficios diarios diferentes.</p>
+                <div id="daily_benefit_fields_edit" style="display: none;">
+                    <div id="daily_benefit_rows_edit"></div>
+                    <button type="button" onclick="addDailyBenefitRow('edit')" class="btn btn-sm" style="margin-top: 10px;">➕ Agregar beneficio diario</button>
                 </div>
             </div>
 
@@ -566,7 +598,41 @@ function restoreEditSelections(iconFile, bgFile) {
 function toggleDailyBenefit(prefix) {
     const enabled = document.getElementById('daily_benefit_enabled_' + prefix).checked;
     const el = document.getElementById('daily_benefit_fields_' + prefix);
-    el.style.display = enabled ? 'grid' : 'none';
+    el.style.display = enabled ? 'block' : 'none';
+    if (enabled) {
+        const rows = document.getElementById('daily_benefit_rows_' + prefix);
+        if (rows && rows.children.length === 0) {
+            addDailyBenefitRow(prefix);
+        }
+    }
+}
+
+// Agregar una fila de beneficio diario
+function addDailyBenefitRow(prefix, name, price, count) {
+    const container = document.getElementById('daily_benefit_rows_' + prefix);
+    if (!container) return;
+    const row = document.createElement('div');
+    row.className = 'daily-benefit-row';
+    row.innerHTML = `
+        <label>Nombre del Producto
+            <input type="text" name="daily_benefit_name" placeholder="Ej. Pan dulce" value="${name || ''}">
+        </label>
+        <label>Precio del Canje ($)
+            <input type="number" name="daily_benefit_price" step="0.01" min="0" value="${price || 0}" placeholder="0.00">
+        </label>
+        <label>Veces al Día
+            <input type="number" name="daily_benefit_count" min="1" value="${count || 1}" placeholder="1">
+        </label>
+        <button type="button" onclick="removeDailyBenefitRow(this)" title="Quitar beneficio"
+            style="background: none; border: 1px solid var(--danger); color: var(--danger); border-radius: 8px; width: 38px; height: 38px; cursor: pointer; font-size: 1rem; align-self: end;">✕</button>
+    `;
+    container.appendChild(row);
+}
+
+// Quitar una fila de beneficio diario
+function removeDailyBenefitRow(btn) {
+    const row = btn.closest('.daily-benefit-row');
+    if (row) row.remove();
 }
 </script>
 {% endblock %}

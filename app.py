@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from flask import Flask, flash, redirect, render_template, request, send_file, session, url_for, Response, jsonify, has_request_context
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
-from models import db, Admin, Card, Transaction, Notification, PushSubscription, MembershipType, Product, ProductMovement, AppSetting, PurchaseRequest, generate_unique_code, init_db
+from models import db, Admin, Card, Transaction, Notification, PushSubscription, MembershipType, DailyBenefit, DailyBenefitRedemption, Product, ProductMovement, AppSetting, PurchaseRequest, generate_unique_code, init_db
 from utils import get_logger, generate_qr_image, generate_deep_link, sanitize_input, generate_whatsapp_image
 import drive_backup
 import requests as http_requests  # HTTP para PayPal API
@@ -139,7 +139,8 @@ def create_app():
                                           "discount_percent": m.discount_percent,
                                           "drinks_count": m.drinks_count, "grain_bags": m.grain_bags,
                                           "badge_icon": m.badge_icon, "badge_color": m.badge_color,
-                                          "background_image": m.background_image, "is_active": m.is_active}
+                                          "background_image": m.background_image, "is_active": m.is_active,
+                                          "daily_benefits": [b.to_dict() for b in m.daily_benefits]}
                                          for m in MembershipType.query.all()],
                     "products": [{"id": p.id, "name": p.name, "description": p.description,
                                   "cost": float(p.cost), "price": float(p.price),
@@ -199,7 +200,8 @@ def create_app():
                                   "discount_percent": m.discount_percent,
                                   "drinks_count": m.drinks_count, "grain_bags": m.grain_bags,
                                   "badge_icon": m.badge_icon, "badge_color": m.badge_color,
-                                  "background_image": m.background_image, "is_active": m.is_active}
+                                  "background_image": m.background_image, "is_active": m.is_active,
+                                  "daily_benefits": [b.to_dict() for b in m.daily_benefits]}
                                  for m in MembershipType.query.all()],
             "products": [{"id": p.id, "name": p.name, "description": p.description,
                           "cost": float(p.cost), "price": float(p.price),
@@ -322,8 +324,18 @@ def create_app():
                 existing_m.badge_color = md.get("badge_color", "#FFD700")
                 existing_m.background_image = bg_image_path
                 existing_m.is_active = md.get("is_active", True)
+                # Restaurar beneficios diarios (reemplazar lista)
+                for b in existing_m.daily_benefits:
+                    db.session.delete(b)
+                for bd in md.get("daily_benefits", []):
+                    db.session.add(DailyBenefit(
+                        membership_type_id=existing_m.id,
+                        name=bd.get("name", "Beneficio diario"),
+                        price=bd.get("price", 0),
+                        count=bd.get("count", 1)
+                    ))
             else:
-                db.session.add(MembershipType(
+                new_m = MembershipType(
                     id=md["id"], name=md["name"], description=md["description"],
                     price=md["price"], cashback_percent=md["cashback_percent"],
                     discount_percent=md["discount_percent"], drinks_count=md["drinks_count"],
@@ -331,7 +343,16 @@ def create_app():
                     badge_icon=badge_icon_path,
                     badge_color=md.get("badge_color", "#FFD700"),
                     background_image=bg_image_path, is_active=md.get("is_active", True)
-                ))
+                )
+                db.session.add(new_m)
+                db.session.flush()  # Para obtener new_m.id
+                for bd in md.get("daily_benefits", []):
+                    db.session.add(DailyBenefit(
+                        membership_type_id=new_m.id,
+                        name=bd.get("name", "Beneficio diario"),
+                        price=bd.get("price", 0),
+                        count=bd.get("count", 1)
+                    ))
             memberships_imported += 1
 
         cards_imported = 0
@@ -876,9 +897,6 @@ def create_app():
             drinks_count = int(request.form.get("drinks_count") or 0)
             grain_bags = int(request.form.get("grain_bags") or 0)
             daily_benefit_enabled = request.form.get("daily_benefit_enabled") == "on"
-            daily_benefit_name = sanitize_input(request.form.get("daily_benefit_name", ""))
-            daily_benefit_price = float(request.form.get("daily_benefit_price") or 0)
-            daily_benefit_count = int(request.form.get("daily_benefit_count") or 1)
             badge_color = request.form.get("badge_color", "#FFD700")
             is_default = request.form.get("is_default") == "on"
             
@@ -902,15 +920,31 @@ def create_app():
                 drinks_count=drinks_count,
                 grain_bags=grain_bags,
                 daily_benefit_enabled=daily_benefit_enabled,
-                daily_benefit_name=daily_benefit_name,
-                daily_benefit_price=daily_benefit_price,
-                daily_benefit_count=daily_benefit_count,
                 badge_icon=badge_icon_path,
                 badge_color=badge_color,
                 background_image=background_image_path,
                 is_default=is_default
             )
             db.session.add(new_membership)
+            db.session.flush()  # Para obtener new_membership.id
+
+            # Beneficios diarios múltiples
+            if daily_benefit_enabled:
+                db_names = request.form.getlist("daily_benefit_name")
+                db_prices = request.form.getlist("daily_benefit_price")
+                db_counts = request.form.getlist("daily_benefit_count")
+                for i, db_name in enumerate(db_names):
+                    db_name = sanitize_input(db_name)
+                    if not db_name:
+                        continue
+                    db_price = float(db_prices[i]) if i < len(db_prices) and db_prices[i] else 0
+                    db_count = int(db_counts[i]) if i < len(db_counts) and db_counts[i] else 1
+                    db.session.add(DailyBenefit(
+                        membership_type_id=new_membership.id,
+                        name=db_name,
+                        price=db_price,
+                        count=max(1, db_count)
+                    ))
             db.session.commit()
             upload_backup_to_drive_after_change()
             flash(f"Tipo de membresa '{name}' creado correctamente", "success")
@@ -943,11 +977,30 @@ def create_app():
         membership.drinks_count = int(request.form.get("drinks_count") or membership.drinks_count)
         membership.grain_bags = int(request.form.get("grain_bags") or membership.grain_bags)
         membership.daily_benefit_enabled = request.form.get("daily_benefit_enabled") == "on"
-        membership.daily_benefit_name = sanitize_input(request.form.get("daily_benefit_name", membership.daily_benefit_name or ""))
-        membership.daily_benefit_price = float(request.form.get("daily_benefit_price") or membership.daily_benefit_price or 0)
-        membership.daily_benefit_count = int(request.form.get("daily_benefit_count") or membership.daily_benefit_count or 1)
         membership.badge_color = request.form.get("badge_color", membership.badge_color)
         is_default = request.form.get("is_default") == "on"
+        
+        # Beneficios diarios múltiples: reemplazar la lista completa
+        old_benefits = DailyBenefit.query.filter_by(membership_type_id=membership.id).all()
+        for b in old_benefits:
+            DailyBenefitRedemption.query.filter_by(daily_benefit_id=b.id).delete()
+            db.session.delete(b)
+        if membership.daily_benefit_enabled:
+            db_names = request.form.getlist("daily_benefit_name")
+            db_prices = request.form.getlist("daily_benefit_price")
+            db_counts = request.form.getlist("daily_benefit_count")
+            for i, db_name in enumerate(db_names):
+                db_name = sanitize_input(db_name)
+                if not db_name:
+                    continue
+                db_price = float(db_prices[i]) if i < len(db_prices) and db_prices[i] else 0
+                db_count = int(db_counts[i]) if i < len(db_counts) and db_counts[i] else 1
+                db.session.add(DailyBenefit(
+                    membership_type_id=membership.id,
+                    name=db_name,
+                    price=db_price,
+                    count=max(1, db_count)
+                ))
         
         # Si esta es la default, desmarcar las demás (excepto ella misma)
         if is_default and not membership.is_default:
@@ -1105,19 +1158,19 @@ def create_app():
         # Verificar si la membresa ha caducado y revertir a la principal
         check_and_revert_expired_memberships(card)
 
-        # Reiniciar contador de beneficio diario si es un da nuevo
-        today = datetime.now().date()
-        if card.daily_benefit_last_date and card.daily_benefit_last_date != today:
-            card.daily_benefit_redeemed_today = 0
-            card.daily_benefit_last_date = today
-            db.session.commit()
-        
         is_admin = session.get("admin_id")
         wa_image_url = None
         if card.phone and is_admin:
             wa_image_url = url_for("whatsapp_image", code=code, _external=True)
         # Obtener ltimos 5 movimientos para la vista de cliente
         recent_transactions = Transaction.query.filter_by(card_id=card.id).order_by(Transaction.created_at.desc()).limit(5).all()
+        
+        # Canjes de beneficios diarios de hoy (por beneficio)
+        today = datetime.now().date()
+        daily_redemptions = {}
+        if card.membership_type:
+            redemptions = DailyBenefitRedemption.query.filter_by(card_id=card.id, date=today).all()
+            daily_redemptions = {r.daily_benefit_id: r.redeemed_count for r in redemptions}
         
         # Obtener tipos de membresa para el selector (si es admin)
         membership_types = []
@@ -1126,6 +1179,7 @@ def create_app():
             
         html = render_template("card.html", card=card, is_admin=is_admin, wa_image_url=wa_image_url,
                                recent_transactions=recent_transactions, membership_types=membership_types,
+                               daily_redemptions=daily_redemptions,
                                has_paypal=HAS_PAYPAL, paypal_client_id=PAYPAL_CLIENT_ID,
                                paypal_currency=PAYPAL_CURRENCY)
         # Forzar charset=UTF-8 para que el navegador reciba los emojis como
@@ -1158,10 +1212,7 @@ def create_app():
                 'discount_percent': card.membership_type.discount_percent,
                 'drinks_count': card.membership_type.drinks_count,
                 'grain_bags': card.membership_type.grain_bags,
-                'daily_benefit_enabled': card.membership_type.daily_benefit_enabled,
-                'daily_benefit_name': card.membership_type.daily_benefit_name,
-                'daily_benefit_price': card.membership_type.daily_benefit_price,
-                'daily_benefit_count': card.membership_type.daily_benefit_count,
+                'daily_benefits': [b.to_dict() for b in card.membership_type.daily_benefits],
                 'is_default': card.membership_type.is_default # Importante para ocultar vencimiento
             }
         
@@ -1882,44 +1933,48 @@ def create_app():
             
         return redirect(url_for("view_card", code=code))
 
-    @app.route("/card/<code>/redeem-daily", methods=["POST"])
-    def redeem_daily_benefit(code):
+    @app.route("/card/<code>/redeem-daily/<int:benefit_id>", methods=["POST"])
+    def redeem_daily_benefit(code, benefit_id):
         if not session.get("admin_id"): return redirect(url_for("login"))
         card = Card.query.filter_by(code=code).first_or_404()
         now = datetime.now()
         today = now.date()
 
-        # Verificar si hay membresa activa con beneficio diario habilitado
+        # Verificar si hay membresa activa
         if not card.membership_type or not card.membership_expires_at or now > card.membership_expires_at:
             flash("No tienes una membresa activa.", "error")
             return redirect(url_for("view_card", code=code))
 
-        if not card.membership_type.daily_benefit_enabled:
-            flash("Tu membresa no incluye beneficio diario.", "error")
+        # Verificar que el beneficio pertenezca a la membresía de la tarjeta
+        benefit = DailyBenefit.query.filter_by(id=benefit_id, membership_type_id=card.membership_type_id).first()
+        if not benefit:
+            flash("Beneficio diario no válido.", "error")
             return redirect(url_for("view_card", code=code))
 
-        # Reiniciar contador si es un da nuevo
-        if card.daily_benefit_last_date != today:
-            card.daily_benefit_redeemed_today = 0
-            card.daily_benefit_last_date = today
-            db.session.commit()
+        # Obtener o crear el registro de canje de hoy para este beneficio
+        redemption = DailyBenefitRedemption.query.filter_by(
+            card_id=card.id, daily_benefit_id=benefit.id, date=today
+        ).first()
+        if not redemption:
+            redemption = DailyBenefitRedemption(
+                card_id=card.id, daily_benefit_id=benefit.id, date=today, redeemed_count=0
+            )
+            db.session.add(redemption)
 
         # Verificar lmite diario
-        max_daily = card.membership_type.daily_benefit_count or 1
-        if card.daily_benefit_redeemed_today >= max_daily:
-            flash(f"Ya canjeaste este beneficio hoy ({card.daily_benefit_redeemed_today}/{max_daily} veces). Vuelve mañana.", "error")
+        max_daily = benefit.count or 1
+        if redemption.redeemed_count >= max_daily:
+            flash(f"Ya canjeaste {benefit.name} hoy ({redemption.redeemed_count}/{max_daily} veces). Vuelve mañana.", "error")
             return redirect(url_for("view_card", code=code))
 
         # Verificar saldo suficiente (si hay precio de canje)
-        benefit_price = card.membership_type.daily_benefit_price or 0
+        benefit_price = benefit.price or 0
         if benefit_price > 0 and card.balance < benefit_price:
-            flash(f"Saldo insuficiente. Necesitas ${benefit_price:.2f} y tienes ${card.balance:.2f}.", "error")
+            flash(f"Saldo insuficiente para {benefit.name}. Necesitas ${benefit_price:.2f} y tienes ${card.balance:.2f}.", "error")
             return redirect(url_for("view_card", code=code))
 
         # Realizar el canje
-        benefit_name = card.membership_type.daily_benefit_name or "Beneficio diario"
-        card.daily_benefit_redeemed_today += 1
-        card.daily_benefit_last_date = today
+        redemption.redeemed_count += 1
 
         # Descontar saldo si hay precio
         if benefit_price > 0:
@@ -1928,11 +1983,11 @@ def create_app():
         card.add_transaction(
             -benefit_price if benefit_price > 0 else 0,
             "canje_diario",
-            f"{benefit_name} (diario {card.daily_benefit_redeemed_today}/{max_daily})"
+            f"{benefit.name} (diario {redemption.redeemed_count}/{max_daily})"
         )
         db.session.commit()
         upload_backup_to_drive_after_change()
-        flash(f"{benefit_name} canjeado ({card.daily_benefit_redeemed_today}/{max_daily} hoy).", "success")
+        flash(f"{benefit.name} canjeado ({redemption.redeemed_count}/{max_daily} hoy).", "success")
 
         return redirect(url_for("view_card", code=code))
 
@@ -2772,7 +2827,8 @@ def create_app():
                 "badge_color": m.badge_color,
                 "background_image": m.background_image,
                 "background_image_b64": bg_image_b64,
-                "is_active": m.is_active
+                "is_active": m.is_active,
+                "daily_benefits": [b.to_dict() for b in m.daily_benefits]
             })
 
         cards_data = [{

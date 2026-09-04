@@ -64,9 +64,9 @@
                     {% if card.membership_type.grain_bags > 0 %}
                     <li>🌾 <strong>{{ card.membership_type.grain_bags }}</strong> Bolsas de grano</li>
                     {% endif %}
-                    {% if card.membership_type.daily_benefit_enabled %}
-                    <li>🎁 <strong>{{ card.membership_type.daily_benefit_name or 'Beneficio Diario' }}</strong>{% if card.membership_type.daily_benefit_price > 0 %} (${{ "%.2f"|format(card.membership_type.daily_benefit_price) }}){% endif %} · {{ card.membership_type.daily_benefit_count }}x/día</li>
-                    {% endif %}
+                    {% for b in card.membership_type.daily_benefits %}
+                    <li>🎁 <strong>{{ b.name }}</strong>{% if b.price > 0 %} (${{ "%.2f"|format(b.price) }}){% endif %} · {{ b.count }}x/día</li>
+                    {% endfor %}
                 </ul>
             </div>
             {% endif %}
@@ -230,7 +230,7 @@
                                     ${{ "%.2f"|format(m.price) }} · 
                                     {% if m.is_default %}⭐ Principal (Sin vencimiento){% else %}30 días de vigencia{% endif %}
                                     {% if m.cashback_percent > 0 %} · {{ m.cashback_percent }}% Cashback{% endif %}
-                                    {% if m.daily_benefit_enabled %} · 🎁 {{ m.daily_benefit_name or 'Beneficio diario' }}{% endif %}
+                                    {% for b in m.daily_benefits %} · 🎁 {{ b.name }}{% if b.count > 1 %} ({{ b.count }}x/día){% endif %}{% endfor %}
                                 </div>
                             </div>
                             {% if m.is_default %}
@@ -249,7 +249,7 @@
                 </div>
 
                 <!-- Sección de Canje de Beneficios -->
-                {% set has_benefits = (card.membership_type and (card.membership_type.drinks_count > 0 or card.membership_type.grain_bags > 0 or card.membership_type.daily_benefit_enabled)) %}
+                {% set has_benefits = (card.membership_type and (card.membership_type.drinks_count > 0 or card.membership_type.grain_bags > 0 or card.membership_type.daily_benefits|length > 0)) %}
                 {% if has_benefits %}
                 <hr style="margin: 15px 0; border-top: 1px dashed var(--border);">
                 <h5>🎁 Beneficios</h5>
@@ -276,19 +276,20 @@
                     </div>
                     {% endif %}
 
-                    {% if card.membership_type.daily_benefit_enabled %}
-                    <div style="background: var(--bg); padding: 10px; border-radius: 6px; text-align: center; border: 1px solid var(--border); grid-column: 1 / -1;">
+                    {% for b in card.membership_type.daily_benefits %}
+                    {% set redeemed = daily_redemptions.get(b.id, 0) %}
+                    <div style="background: var(--bg); padding: 10px; border-radius: 6px; text-align: center; border: 1px solid var(--border);">
                         <span style="font-size: 1.5rem;">🎁</span>
-                        <p style="margin: 5px 0; font-weight: bold;">{{ card.membership_type.daily_benefit_name or 'Beneficio Diario' }}</p>
-                        <p class="small">{{ card.daily_benefit_redeemed_today or 0 }} / {{ card.membership_type.daily_benefit_count }} hoy</p>
-                        {% if card.membership_type.daily_benefit_price > 0 %}
-                        <p class="small" style="color: var(--muted); margin: 2px 0;">Precio: ${{ "%.2f"|format(card.membership_type.daily_benefit_price) }}</p>
+                        <p style="margin: 5px 0; font-weight: bold;">{{ b.name }}</p>
+                        <p class="small">{{ redeemed }} / {{ b.count }} hoy</p>
+                        {% if b.price > 0 %}
+                        <p class="small" style="color: var(--muted); margin: 2px 0;">Precio: ${{ "%.2f"|format(b.price) }}</p>
                         {% endif %}
-                        <form method="POST" action="{{ url_for('redeem_daily_benefit', code=card.code) }}">
-                            <button type="submit" class="btn btn-sm btn-primary" {% if (card.daily_benefit_redeemed_today or 0) >= card.membership_type.daily_benefit_count %}disabled{% endif %}>Canjear</button>
+                        <form method="POST" action="{{ url_for('redeem_daily_benefit', code=card.code, benefit_id=b.id) }}">
+                            <button type="submit" class="btn btn-sm btn-primary" {% if redeemed >= b.count %}disabled{% endif %}>Canjear</button>
                         </form>
                     </div>
-                    {% endif %}
+                    {% endfor %}
                 </div>
                 {% endif %}
             </div>

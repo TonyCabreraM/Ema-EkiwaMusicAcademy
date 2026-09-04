@@ -202,6 +202,54 @@ class MembershipType(db.Model):
             'background_image': self.background_image
         }
 
+    @property
+    def daily_benefits_data(self) -> list:
+        """Lista de beneficios diarios como dicts (para serializar a JSON en templates)"""
+        return [b.to_dict() for b in self.daily_benefits]
+
+
+class DailyBenefit(db.Model):
+    """Beneficio diario de una membresía (puede haber varios por membresía).
+    Ej: "Pan dulce" 1x/día, "Café americano" 2x/día, etc."""
+    __tablename__ = 'daily_benefits'
+
+    id = db.Column(db.Integer, primary_key=True)
+    membership_type_id = db.Column(db.Integer, db.ForeignKey('membership_types.id'), nullable=False)
+    name = db.Column(db.String(120), nullable=False)  # Nombre del producto (ej. "Pan dulce")
+    price = db.Column(db.Float, default=0)            # Precio del canje
+    count = db.Column(db.Integer, default=1)          # Veces que se puede canjear al día
+
+    membership_type = db.relationship('MembershipType', backref='daily_benefits', lazy=True)
+
+    def to_dict(self) -> dict:
+        return {
+            'id': self.id,
+            'name': self.name,
+            'price': self.price,
+            'count': self.count,
+        }
+
+    def __repr__(self) -> str:
+        return f"<DailyBenefit {self.id} {self.name}>"
+
+
+class DailyBenefitRedemption(db.Model):
+    """Registro de canjes diarios de un beneficio por tarjeta.
+    Permite llevar el contador por beneficio y por día."""
+    __tablename__ = 'daily_benefit_redemptions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    card_id = db.Column(db.Integer, db.ForeignKey('cards.id'), nullable=False)
+    daily_benefit_id = db.Column(db.Integer, db.ForeignKey('daily_benefits.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    redeemed_count = db.Column(db.Integer, default=0)
+
+    card = db.relationship('Card', backref='daily_benefit_redemptions', lazy=True)
+    daily_benefit = db.relationship('DailyBenefit', backref='redemptions', lazy=True)
+
+    def __repr__(self) -> str:
+        return f"<DailyBenefitRedemption {self.id} card={self.card_id} benefit={self.daily_benefit_id}>"
+
 
 class PurchaseRequest(db.Model):
     """Solicitud de compra de membresía en línea (Stripe).
@@ -361,6 +409,56 @@ def init_db(app) -> None:
             with db.engine.begin() as conn:
                 conn.execute(text("ALTER TABLE notifications ADD COLUMN link_url VARCHAR(500)"))
             print("🔧 Migración aplicada: columna 'link_url' agregada a la tabla notifications")
+
+        # Migración: agregar columnas de beneficio diario a membership_types si faltan
+        if inspector.has_table('membership_types'):
+            mt_cols = [c['name'] for c in inspector.get_columns('membership_types')]
+            mt_migrations = {
+                'daily_benefit_enabled': "ALTER TABLE membership_types ADD COLUMN daily_benefit_enabled BOOLEAN DEFAULT FALSE",
+                'daily_benefit_name': "ALTER TABLE membership_types ADD COLUMN daily_benefit_name VARCHAR(120)",
+                'daily_benefit_price': "ALTER TABLE membership_types ADD COLUMN daily_benefit_price FLOAT DEFAULT 0",
+                'daily_benefit_count': "ALTER TABLE membership_types ADD COLUMN daily_benefit_count INTEGER DEFAULT 1",
+            }
+            for col, sql in mt_migrations.items():
+                if col not in mt_cols:
+                    with db.engine.begin() as conn:
+                        conn.execute(text(sql))
+                    print(f"🔧 Migración aplicada: columna '{col}' agregada a la tabla membership_types")
+
+        # Migración: agregar columnas de beneficio diario a cards si faltan
+        if inspector.has_table('cards'):
+            card_cols = [c['name'] for c in inspector.get_columns('cards')]
+            card_migrations = {
+                'daily_benefit_redeemed_today': "ALTER TABLE cards ADD COLUMN daily_benefit_redeemed_today INTEGER DEFAULT 0",
+                'daily_benefit_last_date': "ALTER TABLE cards ADD COLUMN daily_benefit_last_date DATE",
+            }
+            for col, sql in card_migrations.items():
+                if col not in card_cols:
+                    with db.engine.begin() as conn:
+                        conn.execute(text(sql))
+                    print(f"🔧 Migración aplicada: columna '{col}' agregada a la tabla cards")
+
+        # Migración: convertir el beneficio diario único (columnas antiguas)
+        # al nuevo modelo múltiple (tabla daily_benefits).
+        if inspector.has_table('daily_benefits'):
+            try:
+                migrated = 0
+                memberships = MembershipType.query.filter_by(daily_benefit_enabled=True).all()
+                for m in memberships:
+                    if m.daily_benefit_name and not m.daily_benefits:
+                        db.session.add(DailyBenefit(
+                            membership_type_id=m.id,
+                            name=m.daily_benefit_name,
+                            price=m.daily_benefit_price or 0,
+                            count=m.daily_benefit_count or 1
+                        ))
+                        migrated += 1
+                db.session.commit()
+                if migrated:
+                    print(f"🔧 Migración aplicada: {migrated} beneficio(s) diario(s) convertidos a la tabla daily_benefits")
+            except Exception as e:
+                db.session.rollback()
+                print(f"⚠️ No se pudo migrar beneficios diarios: {e}")
 
         # Crear admin por defecto si no existe (siempre superusuario)
         if Admin.query.count() == 0:

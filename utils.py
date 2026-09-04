@@ -454,7 +454,12 @@ def generate_whatsapp_image(client_name: str, qr_data: str, custom_message: str 
             if membership.get('discount_percent',0)>0: benefits.append(f"🏷️ {membership['discount_percent']}% Descuento")
             if membership.get('drinks_count',0)>0: benefits.append(f"☕ {membership['drinks_count']} Bebidas/mes")
             if membership.get('grain_bags',0)>0: benefits.append(f"🌾 {membership['grain_bags']} Bolsas grano")
-            if membership.get('daily_benefit_enabled'): benefits.append(f"🎁 {membership.get('daily_benefit_name') or 'Beneficio diario'}")
+            for db in (membership.get('daily_benefits') or []):
+                db_text = f"🎁 {db.get('name') or 'Beneficio diario'}"
+                if db.get('price', 0) > 0:
+                    db_text += f" (${db['price']:.2f})"
+                db_text += f" · {db.get('count', 1)}x/día"
+                benefits.append(db_text)
             if benefits:
                 altura_beneficios = 30 + len(benefits) * 35 + 30  # título + items + padding
         
@@ -523,8 +528,12 @@ def generate_whatsapp_image(client_name: str, qr_data: str, custom_message: str 
                 benefit_labels.append(('Bebidas', f"{membership['drinks_count']} Bebidas/mes", 'drinks.png'))
             if membership.get('grain_bags',0)>0:
                 benefit_labels.append(('Grano', f"{membership['grain_bags']} Bolsas grano", 'grain.png'))
-            if membership.get('daily_benefit_enabled'):
-                benefit_labels.append(('Diario', f"{membership.get('daily_benefit_name') or 'Beneficio diario'}", 'calendar.png'))
+            for db in (membership.get('daily_benefits') or []):
+                db_text = f"{db.get('name') or 'Beneficio diario'}"
+                if db.get('price', 0) > 0:
+                    db_text += f" (${db['price']:.2f})"
+                db_text += f" · {db.get('count', 1)}x/día"
+                benefit_labels.append(('Diario', db_text, 'calendar.png'))
             
             if benefit_labels:
                 ben_title = "Beneficios Activos"
@@ -603,7 +612,12 @@ def generate_whatsapp_image(client_name: str, qr_data: str, custom_message: str 
             if membership.get('discount_percent', 0) > 0: benefits.append(f"🏷️ {membership['discount_percent']}% Desc.")
             if membership.get('drinks_count', 0) > 0: benefits.append(f"☕ {membership['drinks_count']} Bebidas/mes")
             if membership.get('grain_bags', 0) > 0: benefits.append(f"🌾 {membership['grain_bags']} Bolsas grano")
-            if membership.get('daily_benefit_enabled'): benefits.append(f"🎁 {membership.get('daily_benefit_name') or 'Beneficio diario'}")
+            for db in (membership.get('daily_benefits') or []):
+                db_text = f"🎁 {db.get('name') or 'Beneficio diario'}"
+                if db.get('price', 0) > 0:
+                    db_text += f" (${db['price']:.2f})"
+                db_text += f" · {db.get('count', 1)}x/día"
+                benefits.append(db_text)
             
             if benefits:
                 benefits_html = "<ul style='list-style: none; padding: 0; margin: 0; font-size: 14px; color: #F5E9D8;'>" + \
