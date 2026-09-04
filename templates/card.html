@@ -288,6 +288,35 @@
             {% endif %}
             
         {% else %}
+            <!-- Recargar Saldo con PayPal -->
+            <div style="margin-bottom: 20px; padding: 15px; background: var(--bg); border: 2px solid var(--border); border-radius: 12px;">
+                <h4 style="margin: 0 0 10px;">💰 Recargar Saldo</h4>
+                <p style="font-size: 0.85rem; color: var(--muted); margin: 0 0 12px;">Agrega saldo a tu tarjeta para canjear beneficios.</p>
+                <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
+                    <button type="button" class="btn btn-sm recharge-amount" onclick="setRechargeAmount(50)">$50</button>
+                    <button type="button" class="btn btn-sm recharge-amount" onclick="setRechargeAmount(100)">$100</button>
+                    <button type="button" class="btn btn-sm recharge-amount" onclick="setRechargeAmount(200)">$200</button>
+                    <button type="button" class="btn btn-sm recharge-amount" onclick="setRechargeAmount(500)">$500</button>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
+                    <input type="number" id="rechargeAmount" min="1" step="0.01" placeholder="Otro monto"
+                           style="flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font-size: 0.95rem; box-sizing: border-box;">
+                    <span style="color: var(--muted);">MXN</span>
+                </div>
+                {% if has_paypal %}
+                <div id="recharge-paypal-btn" style="margin-top: 5px;"></div>
+                <p id="rechargeStatus" style="font-size: 0.8rem; color: var(--muted); margin-top: 8px; display: none;"></p>
+                {% else %}
+                <div style="padding: 12px; border-radius: 8px; background: rgba(220,53,69,0.12); border: 1px solid rgba(220,53,69,0.4);">
+                    <strong style="color: #dc3545;">⚠️ El pago en línea aún no está disponible.</strong>
+                </div>
+                {% endif %}
+            </div>
+
+            <a href="{{ url_for('planes') }}" class="btn btn-block" style="margin-bottom: 20px;">
+                💎 Ver Membresías Disponibles
+            </a>
+
             <h3>📋 Movimientos Recientes</h3>
             
             {% if recent_transactions %}
@@ -325,35 +354,6 @@
                     <p>Aún no hay movimientos registrados</p>
                 </div>
             {% endif %}
-
-            <a href="{{ url_for('planes') }}" class="btn btn-block" style="margin-top: 15px;">
-                💎 Ver Membresías Disponibles
-            </a>
-
-            <!-- Recargar Saldo con PayPal -->
-            <div style="margin-top: 20px; padding: 15px; background: var(--bg); border: 2px solid var(--border); border-radius: 12px;">
-                <h4 style="margin: 0 0 10px;">💰 Recargar Saldo</h4>
-                <p style="font-size: 0.85rem; color: var(--muted); margin: 0 0 12px;">Agrega saldo a tu tarjeta para canjear beneficios.</p>
-                <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
-                    <button type="button" class="btn btn-sm recharge-amount" onclick="setRechargeAmount(50)">$50</button>
-                    <button type="button" class="btn btn-sm recharge-amount" onclick="setRechargeAmount(100)">$100</button>
-                    <button type="button" class="btn btn-sm recharge-amount" onclick="setRechargeAmount(200)">$200</button>
-                    <button type="button" class="btn btn-sm recharge-amount" onclick="setRechargeAmount(500)">$500</button>
-                </div>
-                <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
-                    <input type="number" id="rechargeAmount" min="1" step="0.01" placeholder="Otro monto"
-                           style="flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font-size: 0.95rem; box-sizing: border-box;">
-                    <span style="color: var(--muted);">MXN</span>
-                </div>
-                {% if has_paypal %}
-                <div id="recharge-paypal-btn" style="margin-top: 5px;"></div>
-                <p id="rechargeStatus" style="font-size: 0.8rem; color: var(--muted); margin-top: 8px; display: none;"></p>
-                {% else %}
-                <div style="padding: 12px; border-radius: 8px; background: rgba(220,53,69,0.12); border: 1px solid rgba(220,53,69,0.4);">
-                    <strong style="color: #dc3545;">⚠️ El pago en línea aún no está disponible.</strong>
-                </div>
-                {% endif %}
-            </div>
         {% endif %}
     </div>
 </div>
