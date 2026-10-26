@@ -1,16 +1,18 @@
-/* EMA - Ekiwa Music Academy :: Tema Rock */
-@import url('https://fonts.googleapis.com/css2?family=Metal+Mania&family=Roboto:wght@300;400;700&display=swap');
+/* EMA - Ekiwa Music Academy :: Tema Rock (rojo, negro, gris, blanco) */
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Roboto:wght@300;400;500;700&display=swap');
 
 :root {
-  --rock-bg: #0b0b0d;
-  --rock-bg-2: #15151a;
-  --rock-card: #1c1c22;
-  --rock-border: #2e2e36;
-  --rock-red: #e50914;
-  --rock-red-dark: #a3070f;
-  --rock-grey: #8a8a92;
-  --rock-text: #f2f2f5;
-  --rock-muted: #a0a0aa;
+  --rock-bg: #0d0d0d;
+  --rock-bg-2: #161616;
+  --rock-card: #1f1f1f;
+  --rock-card-2: #262626;
+  --rock-border: #3a3a3a;
+  --rock-red: #c0392b;
+  --rock-red-dark: #922b21;
+  --rock-grey: #9e9e9e;
+  --rock-text: #f5f5f5;
+  --rock-muted: #b0b0b0;
+  --rock-white: #ffffff;
 }
 
 * { box-sizing: border-box; }
@@ -20,27 +22,25 @@ html, body {
   color: var(--rock-text);
   font-family: 'Roboto', sans-serif;
   min-height: 100vh;
+  margin: 0;
 }
 
 body {
-  background:
-    radial-gradient(ellipse at top, rgba(229,9,20,0.08) 0%, transparent 60%),
-    linear-gradient(180deg, #0b0b0d 0%, #121216 100%);
+  background: var(--rock-bg);
 }
 
 /* Navbar */
 .navbar {
-  background: linear-gradient(180deg, #000 0%, #1a1a1f 100%) !important;
-  border-bottom: 2px solid var(--rock-red);
-  box-shadow: 0 2px 12px rgba(229,9,20,0.25);
+  background: #000 !important;
+  border-bottom: 3px solid var(--rock-red);
 }
 .navbar-brand {
-  font-family: 'Metal Mania', cursive;
-  font-size: 1.6rem;
-  letter-spacing: 2px;
-  color: var(--rock-red) !important;
-  text-shadow: 0 0 8px rgba(229,9,20,0.6);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.8rem;
+  letter-spacing: 3px;
+  color: var(--rock-white) !important;
 }
+.navbar-brand span { color: var(--rock-red); }
 .navbar .nav-link {
   color: var(--rock-text) !important;
   font-weight: 500;
@@ -48,46 +48,42 @@ body {
   letter-spacing: 1px;
   font-size: 0.85rem;
 }
-.navbar .nav-link:hover {
-  color: var(--rock-red) !important;
-}
+.navbar .nav-link:hover { color: var(--rock-red) !important; }
 
-/* Contenedor */
 .container { max-width: 1140px; }
 
 /* Cards */
 .card {
   background: var(--rock-card);
   border: 1px solid var(--rock-border);
-  border-radius: 10px;
-  box-shadow: 0 4px 18px rgba(0,0,0,0.4);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
   color: var(--rock-text);
 }
-.card h5, .card h4, .card h3, .card h2 {
-  color: var(--rock-red);
-  font-family: 'Metal Mania', cursive;
-  letter-spacing: 1px;
+.card h2, .card h3, .card h4, .card h5 {
+  color: var(--rock-white);
+  font-family: 'Bebas Neue', sans-serif;
+  letter-spacing: 2px;
 }
 
 /* Títulos de página */
 h1, h2, h3, h4 {
-  font-family: 'Metal Mania', cursive;
+  font-family: 'Bebas Neue', sans-serif;
   letter-spacing: 2px;
-  color: var(--rock-red);
-  text-shadow: 0 0 6px rgba(229,9,20,0.3);
+  color: var(--rock-white);
 }
 
 /* Botones */
 .btn-primary {
   background: var(--rock-red);
   border-color: var(--rock-red-dark);
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1px;
 }
 .btn-primary:hover {
   background: var(--rock-red-dark);
-  border-color: #7a050b;
+  border-color: #7b241c;
 }
 .btn-success { background: #2e7d32; border-color: #1b5e20; }
 .btn-danger { background: #b71c1c; border-color: #7f0000; }
@@ -98,19 +94,20 @@ h1, h2, h3, h4 {
 .btn-outline-primary:hover {
   background: var(--rock-red);
   color: #fff;
+  border-color: var(--rock-red);
 }
 .btn-link { color: var(--rock-red); }
 
 /* Formularios */
 .form-control, .form-select {
-  background: #0f0f13;
+  background: #111;
   border: 1px solid var(--rock-border);
   color: var(--rock-text);
 }
 .form-control:focus, .form-select:focus {
-  background: #14141a;
+  background: #141414;
   border-color: var(--rock-red);
-  box-shadow: 0 0 0 0.2rem rgba(229,9,20,0.25);
+  box-shadow: 0 0 0 0.15rem rgba(192,57,43,0.25);
   color: var(--rock-text);
 }
 .form-label { color: var(--rock-muted); text-transform: uppercase; font-size: 0.75rem; letter-spacing: 1px; }
@@ -120,49 +117,50 @@ h1, h2, h3, h4 {
 .table {
   color: var(--rock-text);
   border-color: var(--rock-border);
+  background: var(--rock-card);
 }
 .table thead th {
   background: #000;
-  color: var(--rock-red);
+  color: var(--rock-white);
   text-transform: uppercase;
   letter-spacing: 1px;
   font-size: 0.8rem;
   border-color: var(--rock-border);
 }
 .table-striped > tbody > tr:nth-of-type(odd) > * {
-  background-color: rgba(255,255,255,0.03);
+  background-color: rgba(255,255,255,0.04);
 }
-.table tbody tr:hover > * { background-color: rgba(229,9,20,0.08); }
+.table tbody tr:hover > * { background-color: rgba(192,57,43,0.12); }
 .table td, .table th { border-color: var(--rock-border); vertical-align: middle; }
 
 /* Badges */
-.badge.bg-secondary { background: var(--rock-red-dark) !important; }
+.badge.bg-secondary { background: var(--rock-red-dark) !important; color: #fff; }
 
 /* Alertas */
-.alert { border-radius: 8px; border: none; }
-.alert-success { background: #1b3a1f; color: #b9f6ca; }
-.alert-danger { background: #3a1b1b; color: #ff8a80; }
-.alert-warning { background: #3a321b; color: #ffe082; }
-.alert-info { background: #1b2a3a; color: #82b1ff; }
+.alert { border-radius: 6px; border: 1px solid var(--rock-border); }
+.alert-success { background: #1b3a1f; color: #c8e6c9; border-color: #2e7d32; }
+.alert-danger { background: #3a1b1b; color: #ffcdd2; border-color: #b71c1c; }
+.alert-warning { background: #3a321b; color: #fff9c4; border-color: #f9a825; }
+.alert-info { background: #1b2a3a; color: #bbdefb; border-color: #1565c0; }
 
 /* Display numbers */
-.display-6 { color: var(--rock-red); font-family: 'Metal Mania', cursive; }
+.display-6 { color: var(--rock-red); font-family: 'Bebas Neue', sans-serif; }
 
-/* Footer-ish */
 .text-muted { color: var(--rock-muted) !important; }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 10px; }
-::-webkit-scrollbar-track { background: #0b0b0d; }
+::-webkit-scrollbar-track { background: #0d0d0d; }
 ::-webkit-scrollbar-thumb { background: var(--rock-red-dark); border-radius: 5px; }
 
-/* Hero banner opcional */
+/* Hero banner */
 .hero-banner {
-  background: linear-gradient(135deg, #000 0%, #2a0a0d 50%, #000 100%);
-  border: 1px solid var(--rock-red-dark);
-  border-radius: 12px;
-  padding: 2rem;
-  text-align: center;
+  background: #111;
+  border: 1px solid var(--rock-border);
+  border-left: 4px solid var(--rock-red);
+  border-radius: 8px;
+  padding: 1.5rem 2rem;
   margin-bottom: 2rem;
 }
-.hero-banner h1 { font-size: 2.5rem; }
+.hero-banner h1 { font-size: 2.2rem; color: var(--rock-white); }
+.hero-banner p { color: var(--rock-muted); }

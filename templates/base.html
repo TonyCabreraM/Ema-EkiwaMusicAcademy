@@ -10,7 +10,7 @@
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
   <div class="container">
-    <a class="navbar-brand" href="{{ url_for('home') }}">EMA - Ekiwa Music Academy</a>
+    <a class="navbar-brand" href="{{ url_for('home') }}">EMA <span>| Ekiwa Music Academy</span></a>
     <div class="collapse navbar-collapse">
       <ul class="navbar-nav me-auto">
         {% if session.get('role') == 'director' %}
