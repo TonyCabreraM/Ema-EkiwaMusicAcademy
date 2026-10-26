@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}Horarios{% endblock %}
+{% block content %}
+<h2 class="mb-3">Horarios</h2>
+<div class="card p-3 mb-4">
+  <h5>Nuevo horario</h5>
+  <form method="POST" class="row g-2">
+    <div class="col-md-3">
+      <select name="teacher_id" class="form-select" required>
+        <option value="">Maestro</option>
+        {% for t in teachers %}<option value="{{ t.id }}">{{ t.full_name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <select name="student_id" class="form-select">
+        <option value="">Alumno (o grupo)</option>
+        {% for s in students %}<option value="{{ s.id }}">{{ s.full_name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2"><input name="group_name" class="form-control" placeholder="Nombre grupo"></div>
+    <div class="col-md-2">
+      <select name="day_of_week" class="form-select" required>
+        <option value="">Día</option>
+        {% for d in days %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-1"><input name="start_time" type="time" class="form-control" required></div>
+    <div class="col-md-1"><input name="end_time" type="time" class="form-control" required></div>
+    <div class="col-md-2"><input name="room" class="form-control" placeholder="Sala"></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Crear</button></div>
+  </form>
+</div>
+<table class="table table-striped">
+  <thead><tr><th>Día</th><th>Hora</th><th>Maestro</th><th>Alumno/Grupo</th><th>Sala</th><th></th></tr></thead>
+  <tbody>
+  {% for s in schedules %}
+    <tr>
+      <td>{{ s.day_of_week }}</td>
+      <td>{{ s.start_time }} - {{ s.end_time }}</td>
+      <td>{{ s.teacher.full_name }}</td>
+      <td>{{ s.subject_name }}</td>
+      <td>{{ s.room or '-' }}</td>
+      <td>
+        <form method="POST" action="{{ url_for('delete_schedule', sched_id=s.id) }}" onsubmit="return confirm('¿Eliminar horario?');" style="display:inline;">
+          <button class="btn btn-sm btn-danger">Eliminar</button>
+        </form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6" class="text-center text-muted">Sin horarios</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

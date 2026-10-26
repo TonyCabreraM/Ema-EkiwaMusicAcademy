@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block title %}Alumnos{% endblock %}
+{% block content %}
+<h2 class="mb-3">Alumnos</h2>
+<div class="card p-3 mb-4">
+  <h5>Nuevo alumno</h5>
+  <form method="POST" class="row g-2">
+    <div class="col-md-3"><input name="full_name" class="form-control" placeholder="Nombre completo" required></div>
+    <div class="col-md-2"><input name="parent_name" class="form-control" placeholder="Padre/Madre"></div>
+    <div class="col-md-2"><input name="parent_phone" class="form-control" placeholder="Tel. padre"></div>
+    <div class="col-md-2"><input name="phone" class="form-control" placeholder="Tel. alumno"></div>
+    <div class="col-md-2"><input name="email" class="form-control" placeholder="Email"></div>
+    <div class="col-md-1"><button class="btn btn-primary w-100" type="submit">Crear</button></div>
+    <div class="col-12 mt-2">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="create_login" id="cl">
+        <label class="form-check-label" for="cl">Crear login para alumno/padre</label>
+      </div>
+    </div>
+    <div class="col-md-3"><input name="username" class="form-control" placeholder="Usuario (si login)"></div>
+    <div class="col-md-3"><input name="password" type="password" class="form-control" placeholder="Contraseña (si login)"></div>
+  </form>
+</div>
+
+<h5>Asignar alumno a maestro</h5>
+<form method="POST" action="{{ url_for('assign_student') }}" class="row g-2 mb-4">
+  <div class="col-md-5">
+    <select name="teacher_id" class="form-select" required>
+      <option value="">Maestro</option>
+      {% for t in teachers %}<option value="{{ t.id }}">{{ t.full_name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="col-md-5">
+    <select name="student_id" class="form-select" required>
+      <option value="">Alumno</option>
+      {% for s in students %}<option value="{{ s.id }}">{{ s.full_name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="col-md-2"><button class="btn btn-success w-100" type="submit">Asignar</button></div>
+</form>
+
+<table class="table table-striped">
+  <thead><tr><th>Alumno</th><th>Padre/Madre</th><th>Tel.</th><th>Maestros</th><th></th></tr></thead>
+  <tbody>
+  {% for s in students %}
+    <tr>
+      <td>{{ s.full_name }}</td>
+      <td>{{ s.parent_name or '-' }}</td>
+      <td>{{ s.phone or s.parent_phone or '-' }}</td>
+      <td>
+        {% for t in s.teachers %}
+          <span class="badge bg-secondary">{{ t.full_name }}</span>
+          <form method="POST" action="{{ url_for('unassign_student') }}" style="display:inline;">
+            <input type="hidden" name="teacher_id" value="{{ t.id }}">
+            <input type="hidden" name="student_id" value="{{ s.id }}">
+            <button class="btn btn-sm btn-link text-danger p-0" title="Quitar">×</button>
+          </form>
+        {% else %}-{% endfor %}
+      </td>
+      <td>
+        <form method="POST" action="{{ url_for('delete_student', student_id=s.id) }}" onsubmit="return confirm('¿Eliminar alumno?');" style="display:inline;">
+          <button class="btn btn-sm btn-danger">Eliminar</button>
+        </form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5" class="text-center text-muted">Sin alumnos</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

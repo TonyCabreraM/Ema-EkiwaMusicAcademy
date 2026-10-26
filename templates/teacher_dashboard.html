@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}Mi panel - Maestro{% endblock %}
+{% block content %}
+<h2 class="mb-3">Hola, {{ teacher.full_name }}</h2>
+<p class="text-muted">Especialidad: {{ teacher.specialty or '-' }}</p>
+
+<h4>Mis alumnos</h4>
+<ul class="list-group mb-4">
+  {% for s in teacher.students %}
+    <li class="list-group-item">{{ s.full_name }} {% if s.parent_name %}<small class="text-muted">({{ s.parent_name }})</small>{% endif %}</li>
+  {% else %}
+    <li class="list-group-item text-muted">Sin alumnos asignados</li>
+  {% endfor %}
+</ul>
+
+<h4>Mis horarios</h4>
+<table class="table table-striped">
+  <thead><tr><th>Día</th><th>Hora</th><th>Alumno/Grupo</th><th>Sala</th></tr></thead>
+  <tbody>
+  {% for s in schedules %}
+    <tr>
+      <td>{{ s.day_of_week }}</td>
+      <td>{{ s.start_time }} - {{ s.end_time }}</td>
+      <td>{{ s.subject_name }}</td>
+      <td>{{ s.room or '-' }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="4" class="text-center text-muted">Sin horarios</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

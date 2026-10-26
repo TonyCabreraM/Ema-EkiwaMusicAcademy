@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard Director{% endblock %}
+{% block content %}
+<h2 class="mb-3">Panel del director</h2>
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="card p-3 text-center">
+      <h5>Maestros</h5>
+      <p class="display-6">{{ teachers|length }}</p>
+      <a href="{{ url_for('director_teachers') }}" class="btn btn-sm btn-outline-primary">Gestionar</a>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card p-3 text-center">
+      <h5>Alumnos</h5>
+      <p class="display-6">{{ students|length }}</p>
+      <a href="{{ url_for('director_students') }}" class="btn btn-sm btn-outline-primary">Gestionar</a>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card p-3 text-center">
+      <h5>Horarios</h5>
+      <p class="display-6">{{ schedules|length }}</p>
+      <a href="{{ url_for('director_schedules') }}" class="btn btn-sm btn-outline-primary">Gestionar</a>
+    </div>
+  </div>
+</div>
+<h4>Próximos horarios</h4>
+<table class="table table-striped">
+  <thead><tr><th>Día</th><th>Hora</th><th>Maestro</th><th>Alumno/Grupo</th><th>Sala</th></tr></thead>
+  <tbody>
+  {% for s in schedules[:20] %}
+    <tr>
+      <td>{{ s.day_of_week }}</td>
+      <td>{{ s.start_time }} - {{ s.end_time }}</td>
+      <td>{{ s.teacher.full_name }}</td>
+      <td>{{ s.subject_name }}</td>
+      <td>{{ s.room or '-' }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5" class="text-center text-muted">Sin horarios</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
