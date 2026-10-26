@@ -10,6 +10,21 @@
     <div class="col-md-2"><input name="parent_phone" class="form-control" placeholder="Tel. padre"></div>
     <div class="col-md-2"><input name="phone" class="form-control" placeholder="Tel. alumno"></div>
     <div class="col-md-2"><input name="email" class="form-control" placeholder="Email"></div>
+    <div class="col-md-3">
+      <select name="teacher_id" class="form-select">
+        <option value="">Maestro (opcional)</option>
+        {% for t in teachers %}<option value="{{ t.get('id') }}">{{ t.full_name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <select name="day_of_week" class="form-select">
+        <option value="">Día (opcional)</option>
+        {% for d in DAYS %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2"><input name="start_time" type="time" class="form-control" placeholder="Inicio"></div>
+    <div class="col-md-2"><input name="end_time" type="time" class="form-control" placeholder="Fin"></div>
+    <div class="col-md-2"><input name="room" class="form-control" placeholder="Sala"></div>
     <div class="col-md-1"><button class="btn btn-primary w-100" type="submit">Crear</button></div>
     <div class="col-12 mt-2">
       <div class="form-check">

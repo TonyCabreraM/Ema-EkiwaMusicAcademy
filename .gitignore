@@ -35,5 +35,6 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
+# Secrets / credentials
+*.json
+credentials.json

@@ -247,6 +247,38 @@ def director_students():
         # vincular user.student_id
         if uid:
             db.update_record("Users", uid, {"student_id": sid})
+
+        # Asignación de maestro (opcional)
+        teacher_id = request.form.get('teacher_id', type=int)
+        if teacher_id:
+            teacher = db.get_by_id("Teachers", teacher_id)
+            if teacher:
+                exists = any(r.get("teacher_id") == str(teacher_id) and r.get("student_id") == str(sid)
+                             for r in db.all_records("TeacherStudent"))
+                if not exists:
+                    db.append_record("TeacherStudent", {
+                        "teacher_id": teacher_id,
+                        "student_id": sid,
+                        "assigned_at": datetime.utcnow().isoformat(),
+                    })
+
+        # Horario (opcional, requiere maestro)
+        day = request.form.get('day_of_week')
+        start = request.form.get('start_time')
+        end = request.form.get('end_time')
+        if teacher_id and day and start and end:
+            db.append_record("Schedules", {
+                "teacher_id": teacher_id,
+                "student_id": sid,
+                "group_name": "",
+                "day_of_week": day,
+                "start_time": start,
+                "end_time": end,
+                "room": request.form.get('room', ''),
+                "notes": request.form.get('notes', ''),
+                "created_at": datetime.utcnow().isoformat(),
+            })
+
         flash('Alumno creado.', 'success')
         return redirect(url_for('director_students'))
     students = db.all_records("Students")
