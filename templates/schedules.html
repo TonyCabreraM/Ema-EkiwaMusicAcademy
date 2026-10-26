@@ -37,8 +37,8 @@
     <tr>
       <td>{{ s.day_of_week }}</td>
       <td>{{ s.start_time }} - {{ s.end_time }}</td>
-      <td>{{ s.teacher.full_name }}</td>
-      <td>{{ s.subject_name }}</td>
+      <td>{{ teacher_by_id(s.get('teacher_id')).get('full_name') if teacher_by_id(s.get('teacher_id')) else '-' }}</td>
+      <td>{{ subject_name(s) }}</td>
       <td>{{ s.room or '-' }}</td>
       <td>
         <form method="POST" action="{{ url_for('delete_schedule', sched_id=s.id) }}" onsubmit="return confirm('¿Eliminar horario?');" style="display:inline;">

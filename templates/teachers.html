@@ -19,10 +19,10 @@
   {% for t in teachers %}
     <tr>
       <td>{{ t.full_name }}</td>
-      <td>{{ t.user.username if t.user else '-' }}</td>
+      <td>{{ get_user(t.get('user_id')).get('username') if get_user(t.get('user_id')) else '-' }}</td>
       <td>{{ t.specialty or '-' }}</td>
       <td>{{ t.phone or '-' }}</td>
-      <td>{{ t.students|length }}</td>
+      <td>{{ teacher_students(t.get('id'))|length }}</td>
       <td>
         <form method="POST" action="{{ url_for('delete_teacher', teacher_id=t.id) }}" onsubmit="return confirm('¿Eliminar maestro?');" style="display:inline;">
           <button class="btn btn-sm btn-danger">Eliminar</button>

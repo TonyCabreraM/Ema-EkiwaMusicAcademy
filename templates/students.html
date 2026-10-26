@@ -48,11 +48,11 @@
       <td>{{ s.parent_name or '-' }}</td>
       <td>{{ s.phone or s.parent_phone or '-' }}</td>
       <td>
-        {% for t in s.teachers %}
+        {% for t in student_teachers(s.get('id')) %}
           <span class="badge bg-secondary">{{ t.full_name }}</span>
           <form method="POST" action="{{ url_for('unassign_student') }}" style="display:inline;">
-            <input type="hidden" name="teacher_id" value="{{ t.id }}">
-            <input type="hidden" name="student_id" value="{{ s.id }}">
+            <input type="hidden" name="teacher_id" value="{{ t.get('id') }}">
+            <input type="hidden" name="student_id" value="{{ s.get('id') }}">
             <button class="btn btn-sm btn-link text-danger p-0" title="Quitar">×</button>
           </form>
         {% else %}-{% endfor %}

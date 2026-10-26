@@ -20,7 +20,7 @@
     <tr>
       <td>{{ s.day_of_week }}</td>
       <td>{{ s.start_time }} - {{ s.end_time }}</td>
-      <td>{{ s.teacher.full_name }}</td>
+      <td>{{ teacher_by_id(s.get('teacher_id')).get('full_name') if teacher_by_id(s.get('teacher_id')) else '-' }}</td>
       <td>{{ s.room or '-' }}</td>
     </tr>
   {% else %}
