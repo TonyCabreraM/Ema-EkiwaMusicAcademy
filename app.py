@@ -349,6 +349,7 @@ def unassign_student():
             break
     if target_idx:
         ws.delete_rows(target_idx)
+        db.invalidate("TeacherStudent")
         flash('Asignación eliminada.', 'info')
     return redirect(url_for('director_students'))
 

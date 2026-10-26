@@ -7,6 +7,7 @@ credentials.json.
 """
 import os
 import json
+import time
 from datetime import datetime
 
 import gspread
@@ -33,6 +34,9 @@ SCHEMAS = {
 
 _client = None
 _spreadsheet = None
+_worksheets = {}
+_records_cache = {}
+CACHE_TTL = 60
 
 
 def _get_credentials():
@@ -62,15 +66,17 @@ def get_spreadsheet():
 
 
 def get_worksheet(name):
+    if name in _worksheets:
+        return _worksheets[name]
     ss = get_spreadsheet()
     try:
         ws = ss.worksheet(name)
     except gspread.WorksheetNotFound:
         ws = ss.add_worksheet(title=name, rows=1000, cols=len(SCHEMAS[name]))
         ws.append_row(SCHEMAS[name])
-    # Asegurar cabeceras
     if ws.row_count == 0 or not ws.row_values(1):
         ws.append_row(SCHEMAS[name])
+    _worksheets[name] = ws
     return ws
 
 
@@ -90,6 +96,7 @@ def init_db():
             "teacher_id": "",
             "student_id": "",
         })
+        invalidate("Users")
         print("Director por defecto creado: director / director123")
 
 
@@ -106,12 +113,17 @@ def _row_to_dict(headers, row):
 
 
 def all_records(name):
+    now = time.time()
+    cached = _records_cache.get(name)
+    if cached and (now - cached[0]) < CACHE_TTL:
+        return cached[1]
     ws = get_worksheet(name)
     headers = _headers(name)
     rows = ws.get_all_values()
     if not rows:
-        return []
-    # primera fila cabeceras
+        result = []
+        _records_cache[name] = (now, result)
+        return result
     data_rows = rows[1:]
     result = []
     for r in data_rows:
@@ -119,6 +131,7 @@ def all_records(name):
             continue
         d = _row_to_dict(headers, r)
         result.append(d)
+    _records_cache[name] = (now, result)
     return result
 
 
@@ -156,6 +169,7 @@ def append_record(name, data):
             v = "TRUE" if v else "FALSE"
         row.append(v)
     ws.append_row(row, value_input_option="USER_ENTERED")
+    invalidate(name)
     return data.get("id")
 
 
@@ -195,6 +209,7 @@ def update_record(name, record_id, data, id_col="id"):
         row.append(v)
     last_col = chr(ord("A") + len(headers) - 1) if len(headers) <= 26 else "Z"
     ws.update(f"A{idx}:{last_col}{idx}", [row])
+    invalidate(name)
     return True
 
 
@@ -204,6 +219,7 @@ def delete_record(name, record_id, id_col="id"):
         return False
     ws = get_worksheet(name)
     ws.delete_rows(idx)
+    invalidate(name)
     return True
 
 
