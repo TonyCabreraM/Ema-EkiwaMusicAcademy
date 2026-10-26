@@ -10,7 +10,7 @@ Aplicación web Flask para tarjetas de regalo digitales con código QR (membres�
 ## Convenciones
 - No commitear secretos (`.env`, `*.db`, backups, imágenes). Ver `.gitignore`.
 - Código en español (mensajes, comentarios). Commits en español.
-- Siempre hacer commit y push a GitHub tras cambios (repo: TonyCabreraM/JubiloQrv2).
+- Siempre hacer commit y push a GitHub tras cambios (repo: TonyCabreraM/Ema-EkiwaMusicAcademy).
 
 ## Memoria del agente
 Esta sección se actualiza con las cosas que el usuario pide recordar. Cada entrada con fecha.
