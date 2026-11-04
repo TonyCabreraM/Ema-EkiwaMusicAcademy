@@ -47,6 +47,7 @@ body {
   background-position: center;
   background-attachment: fixed;
   background-repeat: no-repeat;
+  overflow-x: hidden;
 }
 
 .container, nav, .hero-banner { position: relative; z-index: 1; }
@@ -282,3 +283,54 @@ select { color-scheme: dark; }
 
 /* Inputs time */
 input[type="time"] { color-scheme: dark; }
+
+/* Navbar toggler */
+.navbar-toggler {
+  border-color: rgba(255,255,255,0.3);
+  padding: 6px 10px;
+}
+.navbar-toggler:focus { box-shadow: 0 0 0 3px var(--accent-soft); }
+.navbar-toggler-icon {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(255,255,255,0.9)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+}
+
+/* Contenedor de tablas con scroll horizontal */
+.table-responsive {
+  border-radius: 14px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Responsive */
+@media (max-width: 991.98px) {
+  body { background-attachment: scroll; }
+  .container { padding-left: 14px; padding-right: 14px; }
+  .navbar-brand { font-size: 1rem; }
+  .navbar .nav-link { padding: 10px 12px !important; }
+  .navbar-collapse {
+    margin-top: 10px;
+    padding: 10px;
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    background: rgba(10, 10, 12, 0.85);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+  }
+  .hero-banner { padding: 1.25rem; border-radius: 16px; }
+  .hero-banner h1 { font-size: 1.5rem; }
+  h1 { font-size: 1.6rem; }
+  h2 { font-size: 1.35rem; }
+  h3 { font-size: 1.15rem; }
+  .card { border-radius: 16px; }
+  .table { font-size: 0.82rem; }
+  .table td, .table th { white-space: nowrap; }
+}
+
+@media (max-width: 575.98px) {
+  .navbar-brand span { display: none; }
+  .btn { padding: 8px 12px; font-size: 0.85rem; }
+  .display-6 { font-size: 2rem; }
+  .table { font-size: 0.78rem; }
+  .table thead th { font-size: 0.68rem; }
+  .hero-banner { padding: 1rem; }
+  .card.p-4 { padding: 1.25rem !important; }
+}
