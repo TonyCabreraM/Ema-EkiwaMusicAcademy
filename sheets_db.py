@@ -42,6 +42,14 @@ _records_cache = {}
 CACHE_TTL = 60
 
 
+def invalidate(name=None):
+    """Limpia la caché en memoria (toda o solo de una hoja)."""
+    if name is None:
+        _records_cache.clear()
+    else:
+        _records_cache.pop(name, None)
+
+
 def _get_credentials():
     raw = os.environ.get("GOOGLE_CREDENTIALS")
     if raw:
