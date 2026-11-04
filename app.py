@@ -637,21 +637,19 @@ def create_trial_class():
     if not teacher:
         flash('Perfil de maestro no encontrado.', 'danger')
         return redirect(url_for('logout'))
-    prospect = request.form.get('prospect_name', '').strip()
     date = request.form.get('date')
     start = request.form.get('start_time')
-    end = request.form.get('end_time', '')
-    if not prospect or not date or not start:
-        flash('Nombre, fecha y hora son obligatorios.', 'danger')
+    if not date or not start:
+        flash('La fecha y la hora de inicio son obligatorias.', 'danger')
         return redirect(url_for('teacher_dashboard'))
     db.append_record("TrialClasses", {
         "teacher_id": teacher.get("id"),
-        "prospect_name": prospect,
-        "phone": request.form.get('phone', ''),
+        "prospect_name": "Clase muestra",
+        "phone": "",
         "date": date,
         "start_time": start,
-        "end_time": end,
-        "notes": request.form.get('notes', ''),
+        "end_time": "",
+        "notes": "",
         "status": "pending",
         "created_at": datetime.utcnow().isoformat(),
         "confirmed_at": "",

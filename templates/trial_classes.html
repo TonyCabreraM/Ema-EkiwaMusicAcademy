@@ -7,17 +7,14 @@
 <div class="table-responsive">
 <table class="table table-striped">
   <thead>
-    <tr><th>Fecha</th><th>Hora</th><th>Maestro</th><th>Posible alumno</th><th>Teléfono</th><th>Notas</th><th>Estado</th><th>Acciones</th></tr>
+    <tr><th>Fecha</th><th>Hora de inicio</th><th>Maestro</th><th>Estado</th><th>Acciones</th></tr>
   </thead>
   <tbody>
   {% for t in trials %}
     <tr>
       <td>{{ t.date }}</td>
-      <td>{{ t.start_time }}{% if t.end_time %} - {{ t.end_time }}{% endif %}</td>
+      <td>{{ t.start_time }}</td>
       <td>{% set maestro = teacher_by_id(t.get('teacher_id')) %}{{ maestro.full_name if maestro else '-' }}</td>
-      <td>{{ t.prospect_name }}</td>
-      <td>{{ t.phone or '-' }}</td>
-      <td>{{ t.notes or '-' }}</td>
       <td>
         {% if t.status == 'confirmed' %}<span class="badge bg-success">Confirmada</span>
         {% elif t.status == 'rejected' %}<span class="badge bg-secondary">Rechazada</span>
@@ -37,7 +34,7 @@
       </td>
     </tr>
   {% else %}
-    <tr><td colspan="8" class="text-center text-muted">Sin clases muestra registradas</td></tr>
+    <tr><td colspan="5" class="text-center text-muted">Sin clases muestra registradas</td></tr>
   {% endfor %}
   </tbody>
 </table>
