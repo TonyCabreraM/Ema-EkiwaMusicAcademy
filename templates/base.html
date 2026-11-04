@@ -22,6 +22,7 @@
           <li class="nav-item"><a class="nav-link" href="{{ url_for('director_students') }}">Alumnos</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('director_schedules') }}">Horarios</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('director_trial_classes') }}">Clases muestra</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('director_payments') }}">Pagos</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('password_requests') }}">Solicitudes</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_users') }}">Usuarios</a></li>
         {% elif session.get('role') == 'teacher' %}

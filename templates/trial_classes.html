@@ -2,41 +2,51 @@
 {% block title %}Clases muestra{% endblock %}
 {% block content %}
 <h2 class="mb-3">Clases muestra</h2>
-<p class="text-muted">Confirma o rechaza las clases muestra registradas por los maestros.</p>
+<p class="text-muted">Confirma o rechaza las clases muestra registradas por los maestros. Los registros se agrupan por mes y año.</p>
 
-<div class="table-responsive">
-<table class="table table-striped">
-  <thead>
-    <tr><th>Fecha</th><th>Hora de inicio</th><th>Maestro</th><th>Estado</th><th>Acciones</th></tr>
-  </thead>
-  <tbody>
-  {% for t in trials %}
-    <tr>
-      <td>{{ t.date }}</td>
-      <td>{{ t.start_time }}</td>
-      <td>{% set maestro = teacher_by_id(t.get('teacher_id')) %}{{ maestro.full_name if maestro else '-' }}</td>
-      <td>
-        {% if t.status == 'confirmed' %}<span class="badge bg-success">Confirmada</span>
-        {% elif t.status == 'rejected' %}<span class="badge bg-secondary">Rechazada</span>
-        {% else %}<span class="badge bg-warning text-dark">Pendiente</span>{% endif %}
-      </td>
-      <td>
-        {% if t.status == 'pending' %}
-          <form method="POST" action="{{ url_for('confirm_trial_class', trial_id=t.get('id')) }}" class="d-inline">
-            <button class="btn btn-sm btn-success">Confirmar</button>
+{% for label, items in groups %}
+  <h4 class="mt-4 d-flex align-items-center gap-2">
+    {{ label }}
+    <span class="badge bg-secondary">{{ items|length }}</span>
+  </h4>
+  <div class="table-responsive">
+  <table class="table table-striped">
+    <thead>
+      <tr><th>Fecha</th><th>Hora de inicio</th><th>Maestro</th><th>Estado</th><th>Acciones</th></tr>
+    </thead>
+    <tbody>
+    {% for t in items %}
+      <tr>
+        <td>{{ t.date }}</td>
+        <td>{{ t.start_time }}</td>
+        <td>{% set maestro = teacher_by_id(t.get('teacher_id')) %}{{ maestro.full_name if maestro else '-' }}</td>
+        <td>
+          {% if t.status == 'confirmed' %}<span class="badge bg-success">Confirmada</span>
+          {% elif t.status == 'rejected' %}<span class="badge bg-secondary">Rechazada</span>
+          {% else %}<span class="badge bg-danger">Pendiente</span>{% endif %}
+        </td>
+        <td class="d-flex flex-wrap gap-1">
+          {% if t.status == 'pending' %}
+            <form method="POST" action="{{ url_for('confirm_trial_class', trial_id=t.get('id')) }}" class="d-inline">
+              <button class="btn btn-sm btn-success">Confirmar</button>
+            </form>
+            <form method="POST" action="{{ url_for('reject_trial_class', trial_id=t.get('id')) }}" class="d-inline">
+              <button class="btn btn-sm btn-outline-primary">Rechazar</button>
+            </form>
+          {% else %}
+            <span class="text-muted small align-self-center">{{ t.confirmed_by or '-' }}</span>
+          {% endif %}
+          <form method="POST" action="{{ url_for('delete_trial_class', trial_id=t.get('id')) }}" class="d-inline"
+                onsubmit="return confirm('¿Eliminar este registro de clase muestra?');">
+            <button class="btn btn-sm btn-danger">Eliminar</button>
           </form>
-          <form method="POST" action="{{ url_for('reject_trial_class', trial_id=t.get('id')) }}" class="d-inline">
-            <button class="btn btn-sm btn-outline-primary">Rechazar</button>
-          </form>
-        {% else %}
-          <span class="text-muted">{{ t.confirmed_by or '-' }}</span>
-        {% endif %}
-      </td>
-    </tr>
-  {% else %}
-    <tr><td colspan="5" class="text-center text-muted">Sin clases muestra registradas</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
-</div>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+{% else %}
+  <p class="text-muted">Sin clases muestra registradas.</p>
+{% endfor %}
 {% endblock %}

@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Pagos{% endblock %}
+{% block content %}
+<h2 class="mb-3">Pagos mensuales</h2>
+<p class="text-muted">Cada inicio de mes los alumnos aparecen en rojo (pendiente). Cuando el alumno registra su pago pasa a amarillo y al confirmarlo tú se marca en verde.</p>
+
+<div class="card p-3 mb-3">
+  <form method="GET" class="row g-2 align-items-end">
+    <div class="col-12 col-md-4">
+      <label class="form-label">Mes y año</label>
+      <input type="month" name="period" class="form-control" value="{{ period }}">
+    </div>
+    <div class="col-12 col-md-3">
+      <button class="btn btn-primary w-100" type="submit">Ver mes</button>
+    </div>
+  </form>
+</div>
+
+<div class="d-flex flex-wrap gap-2 mb-3">
+  <span class="badge bg-danger">Pendientes: {{ counts.pending }}</span>
+  <span class="badge bg-warning text-dark">Declarados: {{ counts.declared }}</span>
+  <span class="badge bg-success">Pagados: {{ counts.paid }}</span>
+</div>
+
+<h4 class="mb-3">{{ period_label }}</h4>
+
+<div class="table-responsive">
+<table class="table table-striped">
+  <thead><tr><th>Alumno</th><th>Estado</th><th>Declarado</th><th>Pagado</th><th>Confirmado por</th><th>Acciones</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td>{{ r.student.full_name }}</td>
+      <td>
+        {% if r.status == 'paid' %}<span class="badge bg-success">Pagado</span>
+        {% elif r.status == 'declared' %}<span class="badge bg-warning text-dark">Declarado</span>
+        {% else %}<span class="badge bg-danger">Pendiente</span>{% endif %}
+      </td>
+      <td>{{ r.payment.declared_at[:10] if r.payment and r.payment.declared_at else '-' }}</td>
+      <td>{{ r.payment.paid_at[:10] if r.payment and r.payment.paid_at else '-' }}</td>
+      <td>{{ r.payment.confirmed_by if r.payment and r.payment.confirmed_by else '-' }}</td>
+      <td>
+        {% if r.status == 'paid' %}
+          <form method="POST" action="{{ url_for('mark_payment', student_id=r.student.get('id')) }}" class="d-inline">
+            <input type="hidden" name="period" value="{{ period }}">
+            <input type="hidden" name="status" value="pending">
+            <button class="btn btn-sm btn-outline-primary">Marcar pendiente</button>
+          </form>
+        {% else %}
+          <form method="POST" action="{{ url_for('mark_payment', student_id=r.student.get('id')) }}" class="d-inline">
+            <input type="hidden" name="period" value="{{ period }}">
+            <input type="hidden" name="status" value="paid">
+            <button class="btn btn-sm btn-success">Marcar pagado</button>
+          </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6" class="text-center text-muted">Sin alumnos registrados</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

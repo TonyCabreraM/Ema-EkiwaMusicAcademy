@@ -3,6 +3,56 @@
 {% block content %}
 <h2 class="mb-3">Hola, {{ student.full_name }}</h2>
 
+<h4>Mi pago del mes</h4>
+<div class="card p-3 mb-3">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div>
+      <h5 class="mb-2">{{ period_label }}</h5>
+      {% if payment_status == 'paid' %}
+        <span class="badge bg-success">Pagado</span>
+      {% elif payment_status == 'declared' %}
+        <span class="badge bg-warning text-dark">Pago declarado</span>
+      {% else %}
+        <span class="badge bg-danger">Pendiente</span>
+      {% endif %}
+    </div>
+    <div class="text-end">
+      {% if payment_status == 'pending' %}
+        <form method="POST" action="{{ url_for('declare_payment') }}">
+          <button class="btn btn-success" type="submit">Registrar pago del mes</button>
+        </form>
+      {% elif payment_status == 'declared' %}
+        <span class="text-muted small">Esperando confirmación del director</span>
+      {% else %}
+        <span class="text-muted small">Confirmado por: {{ payment.confirmed_by or '-' }}</span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if history %}
+<h4>Historial de pagos</h4>
+<div class="table-responsive mb-4">
+<table class="table table-striped">
+  <thead><tr><th>Periodo</th><th>Estado</th><th>Declarado</th><th>Pagado</th></tr></thead>
+  <tbody>
+  {% for p in history %}
+    <tr>
+      <td>{{ p._label }}</td>
+      <td>
+        {% if p.status == 'paid' %}<span class="badge bg-success">Pagado</span>
+        {% elif p.status == 'declared' %}<span class="badge bg-warning text-dark">Declarado</span>
+        {% else %}<span class="badge bg-danger">Pendiente</span>{% endif %}
+      </td>
+      <td>{{ p.declared_at[:10] if p.declared_at else '-' }}</td>
+      <td>{{ p.paid_at[:10] if p.paid_at else '-' }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
 <h4>Mis maestros</h4>
 <ul class="list-group mb-4">
   {% for t in teachers %}

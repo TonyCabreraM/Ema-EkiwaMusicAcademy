@@ -64,24 +64,27 @@
   </form>
 </div>
 
-<div class="table-responsive">
-<table class="table table-striped">
-  <thead><tr><th>Fecha</th><th>Hora de inicio</th><th>Estado</th></tr></thead>
-  <tbody>
-  {% for t in trials %}
-    <tr>
-      <td>{{ t.date }}</td>
-      <td>{{ t.start_time }}</td>
-      <td>
-        {% if t.status == 'confirmed' %}<span class="badge bg-success">Confirmada</span>
-        {% elif t.status == 'rejected' %}<span class="badge bg-secondary">Rechazada</span>
-        {% else %}<span class="badge bg-warning text-dark">Pendiente</span>{% endif %}
-      </td>
-    </tr>
-  {% else %}
-    <tr><td colspan="3" class="text-center text-muted">Sin clases muestra registradas</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
-</div>
+{% for label, items in trial_groups %}
+  <h5 class="mt-3 d-flex align-items-center gap-2">{{ label }} <span class="badge bg-secondary">{{ items|length }}</span></h5>
+  <div class="table-responsive">
+  <table class="table table-striped">
+    <thead><tr><th>Fecha</th><th>Hora de inicio</th><th>Estado</th></tr></thead>
+    <tbody>
+    {% for t in items %}
+      <tr>
+        <td>{{ t.date }}</td>
+        <td>{{ t.start_time }}</td>
+        <td>
+          {% if t.status == 'confirmed' %}<span class="badge bg-success">Confirmada</span>
+          {% elif t.status == 'rejected' %}<span class="badge bg-secondary">Rechazada</span>
+          {% else %}<span class="badge bg-danger">Pendiente</span>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+{% else %}
+  <p class="text-muted">Sin clases muestra registradas.</p>
+{% endfor %}
 {% endblock %}

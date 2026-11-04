@@ -115,6 +115,53 @@ def subject_name(sched):
     return sched.get("group_name") or "Grupo"
 
 
+MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+         'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+
+
+def month_label(date_str):
+    """Devuelve 'Noviembre 2026' a partir de una fecha YYYY-MM-DD."""
+    try:
+        d = datetime.strptime(str(date_str).strip()[:10], '%Y-%m-%d')
+        return f'{MESES[d.month - 1]} {d.year}'
+    except (ValueError, TypeError):
+        return 'Sin fecha'
+
+
+def group_trials_by_month(trials):
+    """Agrupa clases muestra por mes y año (más reciente primero)."""
+    groups = {}
+    for t in trials:
+        groups.setdefault(month_label(t.get('date', '')), []).append(t)
+    ordered = []
+    for label, items in groups.items():
+        items.sort(key=lambda x: (x.get('date', ''), x.get('start_time', '')), reverse=True)
+        newest = max((i.get('date') or '') for i in items)
+        ordered.append((label, items, newest))
+    ordered.sort(key=lambda g: g[2], reverse=True)
+    return [(label, items) for label, items, _ in ordered]
+
+
+def current_period():
+    """Periodo actual en formato YYYY-MM."""
+    return datetime.utcnow().strftime('%Y-%m')
+
+
+def period_label(period):
+    try:
+        year, month = str(period).split('-')
+        return f'{MESES[int(month) - 1]} {year}'
+    except (ValueError, IndexError, TypeError):
+        return str(period)
+
+
+def get_payment(student_id, period):
+    for p in db.all_records("Payments"):
+        if str(p.get('student_id')) == str(student_id) and str(p.get('period')) == str(period):
+            return p
+    return None
+
+
 # ---------- Routes ----------
 @app.route('/')
 def home():
@@ -642,7 +689,8 @@ def delete_schedule(sched_id):
 def director_trial_classes():
     trials = db.all_records("TrialClasses")
     trials.sort(key=lambda t: (t.get("status") != "pending", t.get("date", ""), t.get("start_time", "")), reverse=False)
-    return render_template('trial_classes.html', trials=trials)
+    groups = group_trials_by_month(trials)
+    return render_template('trial_classes.html', trials=trials, groups=groups)
 
 
 @app.route('/director/trial-classes/<int:trial_id>/confirm', methods=['POST'])
@@ -675,6 +723,87 @@ def reject_trial_class(trial_id):
     return redirect(url_for('director_trial_classes'))
 
 
+@app.route('/director/trial-classes/<int:trial_id>/delete', methods=['POST'])
+@login_required
+@role_required('director')
+def delete_trial_class(trial_id):
+    if db.get_by_id("TrialClasses", trial_id):
+        db.delete_record("TrialClasses", trial_id)
+        flash('Registro de clase muestra eliminado.', 'info')
+    return redirect(url_for('director_trial_classes'))
+
+
+# ---------- Pagos mensuales (director) ----------
+@app.route('/director/payments')
+@login_required
+@role_required('director')
+def director_payments():
+    period = (request.args.get('period') or current_period()).strip()
+    students = sorted(db.all_records("Students"), key=lambda s: (s.get('full_name') or '').lower())
+    payments = [p for p in db.all_records("Payments") if str(p.get('period')) == str(period)]
+    by_student = {str(p.get('student_id')): p for p in payments}
+
+    rows = []
+    counts = {'pending': 0, 'declared': 0, 'paid': 0}
+    for s in students:
+        p = by_student.get(str(s.get('id')))
+        status = (p or {}).get('status') or 'pending'
+        if status not in counts:
+            status = 'pending'
+        counts[status] += 1
+        rows.append({'student': s, 'payment': p, 'status': status})
+
+    all_periods = {current_period()}
+    for p in db.all_records("Payments"):
+        if p.get('period'):
+            all_periods.add(str(p.get('period')))
+    periods = sorted(all_periods, reverse=True)
+
+    return render_template('payments.html', rows=rows, counts=counts, period=period,
+                           period_label=period_label(period), periods=periods)
+
+
+@app.route('/director/payments/<int:student_id>/mark', methods=['POST'])
+@login_required
+@role_required('director')
+def mark_payment(student_id):
+    period = (request.form.get('period') or current_period()).strip()
+    status = request.form.get('status', 'paid')
+    if status not in ('paid', 'pending'):
+        status = 'paid'
+    student = db.get_by_id("Students", student_id)
+    if not student:
+        flash('Alumno no encontrado.', 'danger')
+        return redirect(url_for('director_payments', period=period))
+
+    now = datetime.utcnow().isoformat()
+    existing = get_payment(student_id, period)
+    try:
+        if existing:
+            db.update_record("Payments", existing.get('id'), {
+                "status": status,
+                "paid_at": now if status == 'paid' else "",
+                "confirmed_by": g.user.get('username') if status == 'paid' else "",
+            })
+        else:
+            db.append_record("Payments", {
+                "student_id": student_id,
+                "period": period,
+                "status": status,
+                "declared_at": "",
+                "paid_at": now if status == 'paid' else "",
+                "confirmed_by": g.user.get('username') if status == 'paid' else "",
+                "notes": "",
+            })
+    except Exception as exc:
+        app.logger.exception('No se pudo actualizar el pago en Google Sheets')
+        flash(f'No se pudo guardar en Google Sheets: {exc}', 'danger')
+        return redirect(url_for('director_payments', period=period))
+
+    flash(f'Pago de {student.get("full_name")} marcado como {"pagado" if status == "paid" else "pendiente"}.', 'success')
+    return redirect(url_for('director_payments', period=period))
+
+
 # ---------- Teacher ----------
 @app.route('/teacher')
 @login_required
@@ -690,7 +819,8 @@ def teacher_dashboard():
         s["_subject"] = subject_name(s)
     trials = teacher_trial_classes(teacher.get("id"))
     trials.sort(key=lambda t: (t.get("date", ""), t.get("start_time", "")), reverse=True)
-    return render_template('teacher_dashboard.html', teacher=teacher, schedules=scheds, trials=trials)
+    return render_template('teacher_dashboard.html', teacher=teacher, schedules=scheds,
+                           trials=trials, trial_groups=group_trials_by_month(trials))
 
 
 @app.route('/teacher/trial-class', methods=['POST'])
@@ -739,7 +869,53 @@ def student_dashboard():
         return redirect(url_for('logout'))
     scheds = student_schedules(student.get("id"))
     teachers = student_teachers(student.get("id"))
-    return render_template('student_dashboard.html', student=student, schedules=scheds, teachers=teachers)
+
+    period = current_period()
+    payment = get_payment(student.get("id"), period)
+    payment_status = (payment or {}).get('status') or 'pending'
+
+    history = [p for p in db.all_records("Payments") if str(p.get('student_id')) == str(student.get("id"))]
+    history.sort(key=lambda p: str(p.get('period', '')), reverse=True)
+    for p in history:
+        p['_label'] = period_label(p.get('period'))
+
+    return render_template('student_dashboard.html', student=student, schedules=scheds, teachers=teachers,
+                           period=period, period_label=period_label(period),
+                           payment=payment, payment_status=payment_status, history=history)
+
+
+@app.route('/student/payment', methods=['POST'])
+@login_required
+@role_required('student')
+def declare_payment():
+    student = get_student_by_user(g.user.get("id"))
+    if not student:
+        flash('Perfil de alumno no encontrado.', 'danger')
+        return redirect(url_for('logout'))
+    period = current_period()
+    existing = get_payment(student.get("id"), period)
+    if existing and existing.get('status') == 'paid':
+        flash('El pago de este mes ya está confirmado por el director.', 'info')
+        return redirect(url_for('student_dashboard'))
+    if existing:
+        flash('Ya registraste tu pago de este mes; espera la confirmación del director.', 'info')
+        return redirect(url_for('student_dashboard'))
+    try:
+        db.append_record("Payments", {
+            "student_id": student.get("id"),
+            "period": period,
+            "status": "declared",
+            "declared_at": datetime.utcnow().isoformat(),
+            "paid_at": "",
+            "confirmed_by": "",
+            "notes": "",
+        })
+    except Exception as exc:
+        app.logger.exception('No se pudo registrar el pago en Google Sheets')
+        flash(f'No se pudo guardar en Google Sheets: {exc}', 'danger')
+        return redirect(url_for('student_dashboard'))
+    flash('Pago registrado. El director lo marcará como pagado.', 'success')
+    return redirect(url_for('student_dashboard'))
 
 
 @app.context_processor
