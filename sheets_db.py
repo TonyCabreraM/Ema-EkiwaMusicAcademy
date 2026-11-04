@@ -11,6 +11,7 @@ import time
 from datetime import datetime
 
 import gspread
+from gspread.exceptions import APIError
 from google.oauth2.service_account import Credentials
 
 SCOPES = [
@@ -87,6 +88,22 @@ def get_worksheet(name):
     return ws
 
 
+def _api_retry(func, *args, **kwargs):
+    """Reintenta llamadas a Google Sheets ante errores temporales (429/5xx)."""
+    last_error = None
+    for attempt in range(3):
+        try:
+            return func(*args, **kwargs)
+        except APIError as exc:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            if status in (429, 500, 502, 503):
+                last_error = exc
+                time.sleep(1 + attempt * 2)
+                continue
+            raise
+    raise last_error
+
+
 def init_db():
     """Crea las pestañas si no existen y el director por defecto."""
     for name in SCHEMAS:
@@ -126,7 +143,7 @@ def all_records(name):
         return cached[1]
     ws = get_worksheet(name)
     headers = _headers(name)
-    rows = ws.get_all_values()
+    rows = _api_retry(ws.get_all_values)
     if not rows:
         result = []
         _records_cache[name] = (now, result)
@@ -175,7 +192,7 @@ def append_record(name, data):
         if isinstance(v, bool):
             v = "TRUE" if v else "FALSE"
         row.append(v)
-    ws.append_row(row, value_input_option="USER_ENTERED")
+    _api_retry(ws.append_row, row, value_input_option="USER_ENTERED")
     invalidate(name)
     return data.get("id")
 
@@ -215,7 +232,7 @@ def update_record(name, record_id, data, id_col="id"):
             v = "TRUE" if v else "FALSE"
         row.append(v)
     last_col = chr(ord("A") + len(headers) - 1) if len(headers) <= 26 else "Z"
-    ws.update(f"A{idx}:{last_col}{idx}", [row])
+    _api_retry(ws.update, f"A{idx}:{last_col}{idx}", [row])
     invalidate(name)
     return True
 
@@ -225,7 +242,7 @@ def delete_record(name, record_id, id_col="id"):
     if idx is None:
         return False
     ws = get_worksheet(name)
-    ws.delete_rows(idx)
+    _api_retry(ws.delete_rows, idx)
     invalidate(name)
     return True
 
