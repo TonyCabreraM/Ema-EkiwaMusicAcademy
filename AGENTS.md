@@ -26,3 +26,4 @@ Esta sección se actualiza con las cosas que el usuario pide recordar. Cada entr
 - 2026-10-26: Rediseño visual: estilo iOS glassmorphism (glass, blur, orbs, tipografía San Francisco), alusivo a escuela de música (Musicity México). Paleta rojo acento sobre fondo oscuro.
 - 2026-10-26: Cache en memoria (60s) en sheets_db para evitar quota 429 de Google Sheets; invalidación en escrituras.
 - 2026-11-04: Fondo: static/Background01.jpg (patrón de guitarras EMA) con tarjetas/tablas de cristal esmerilado (backdrop-filter blur).
+- 2026-11-04: Tipografías locales: Alfa Slab One (encabezados) y Roboto Slab (texto), servidas desde static/fonts. Tablas con texto blanco (variables --bs-table-*).
