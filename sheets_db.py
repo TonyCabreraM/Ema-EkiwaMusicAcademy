@@ -30,6 +30,7 @@ SCHEMAS = {
     "Students": ["id", "user_id", "full_name", "phone", "email", "birthdate", "parent_name", "parent_phone", "parent_email", "notes", "created_at"],
     "TeacherStudent": ["teacher_id", "student_id", "assigned_at"],
     "Schedules": ["id", "teacher_id", "student_id", "group_name", "day_of_week", "start_time", "end_time", "room", "notes", "created_at"],
+    "PasswordRequests": ["id", "user_id", "username", "status", "created_at", "resolved_at"],
 }
 
 _client = None

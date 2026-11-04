@@ -21,6 +21,7 @@
           <li class="nav-item"><a class="nav-link" href="{{ url_for('director_teachers') }}">Maestros</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('director_students') }}">Alumnos</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('director_schedules') }}">Horarios</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('password_requests') }}">Solicitudes</a></li>
         {% elif session.get('role') == 'teacher' %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('teacher_dashboard') }}">Mi panel</a></li>
         {% elif session.get('role') == 'student' %}
@@ -29,6 +30,7 @@
       </ul>
       <ul class="navbar-nav">
         {% if session.get('user_id') %}
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('account_password') }}">Mi cuenta</a></li>
           <li class="nav-item"><span class="nav-link text-light">{{ session.get('role') }}</span></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Salir</a></li>
         {% endif %}

@@ -1,4 +1,6 @@
 import os
+import secrets
+import string
 from functools import wraps
 from datetime import datetime
 
@@ -131,6 +133,106 @@ def logout():
     session.clear()
     flash('Sesión cerrada.', 'info')
     return redirect(url_for('login'))
+
+
+# ---------- Contraseñas ----------
+def generate_temp_password(length=8):
+    alphabet = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+
+@app.route('/account/password', methods=['GET', 'POST'])
+@login_required
+def account_password():
+    if request.method == 'POST':
+        current = request.form.get('current_password', '')
+        new = request.form.get('new_password', '')
+        confirm = request.form.get('confirm_password', '')
+        if not g.user or not check_password_hash(g.user.get('password_hash', ''), current):
+            flash('La contraseña actual no es correcta.', 'danger')
+            return redirect(url_for('account_password'))
+        if len(new) < 6:
+            flash('La nueva contraseña debe tener al menos 6 caracteres.', 'danger')
+            return redirect(url_for('account_password'))
+        if new != confirm:
+            flash('Las contraseñas nuevas no coinciden.', 'danger')
+            return redirect(url_for('account_password'))
+        db.update_record("Users", g.user.get('id'), {"password_hash": generate_password_hash(new)})
+        flash('Contraseña actualizada correctamente.', 'success')
+        return redirect(url_for('home'))
+    return render_template('account_password.html')
+
+
+@app.route('/forgot', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        user = None
+        for u in db.all_records("Users"):
+            if u.get("username") == username:
+                user = u
+                break
+        if user:
+            # evitar duplicados pendientes
+            pending = any(r.get("user_id") == str(user.get("id")) and r.get("status") == "pending"
+                          for r in db.all_records("PasswordRequests"))
+            if not pending:
+                db.append_record("PasswordRequests", {
+                    "user_id": user.get("id"),
+                    "username": username,
+                    "status": "pending",
+                    "created_at": datetime.utcnow().isoformat(),
+                    "resolved_at": "",
+                })
+        flash('Si el usuario existe, se envió una solicitud al director para restablecer la contraseña.', 'info')
+        return redirect(url_for('login'))
+    return render_template('forgot_password.html')
+
+
+@app.route('/director/password-requests')
+@login_required
+@role_required('director')
+def password_requests():
+    requests = db.all_records("PasswordRequests")
+    # pendientes primero
+    requests.sort(key=lambda r: (r.get("status") != "pending", r.get("created_at", "")))
+    return render_template('password_requests.html', requests=requests)
+
+
+@app.route('/director/password-requests/<int:req_id>/approve', methods=['POST'])
+@login_required
+@role_required('director')
+def approve_password_request(req_id):
+    req = db.get_by_id("PasswordRequests", req_id)
+    if not req or req.get("status") != "pending":
+        flash('Solicitud no válida.', 'danger')
+        return redirect(url_for('password_requests'))
+    user = db.get_by_id("Users", req.get("user_id"))
+    if not user:
+        flash('Usuario no encontrado.', 'danger')
+        return redirect(url_for('password_requests'))
+    new_password = request.form.get('new_password', '').strip() or generate_temp_password()
+    db.update_record("Users", user.get("id"), {"password_hash": generate_password_hash(new_password)})
+    db.update_record("PasswordRequests", req_id, {
+        "status": "approved",
+        "resolved_at": datetime.utcnow().isoformat(),
+    })
+    flash(f'Contraseña de {user.get("username")} restablecida. Nueva contraseña temporal: {new_password}', 'success')
+    return redirect(url_for('password_requests'))
+
+
+@app.route('/director/password-requests/<int:req_id>/reject', methods=['POST'])
+@login_required
+@role_required('director')
+def reject_password_request(req_id):
+    req = db.get_by_id("PasswordRequests", req_id)
+    if req and req.get("status") == "pending":
+        db.update_record("PasswordRequests", req_id, {
+            "status": "rejected",
+            "resolved_at": datetime.utcnow().isoformat(),
+        })
+        flash('Solicitud rechazada.', 'info')
+    return redirect(url_for('password_requests'))
 
 
 # ---------- Director ----------
