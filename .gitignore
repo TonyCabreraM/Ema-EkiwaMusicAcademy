@@ -22,7 +22,7 @@ jubilo_backup_*.json
 *.bak
 *.backup
 backups/
-Fonts/
+/Fonts/
 *.jpg
 *.jpeg
 *.png
