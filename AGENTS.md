@@ -29,3 +29,4 @@ Esta sección se actualiza con las cosas que el usuario pide recordar. Cada entr
 - 2026-11-04: Tipografías locales: Alfa Slab One (encabezados) y Roboto Slab (texto), servidas desde static/fonts. Tablas con texto blanco (variables --bs-table-*).
 - 2026-11-04: Responsive móvil: navbar toggler, tablas con .table-responsive y media queries en style.css.
 - 2026-11-04: Contraseñas: cada usuario cambia la suya en /account/password; recuperación en /forgot genera solicitud en hoja PasswordRequests que el director aprueba (/director/password-requests) generando contraseña temporal. Menú móvil ahora absoluto (se superpone).
+- 2026-11-04: Clases muestra: hoja TrialClasses. El maestro registra en su panel (/teacher, formulario + historial y contadores); el director confirma o rechaza en /director/trial-classes. La lista de maestros muestra confirmadas/total. Menú hamburguesa con estilo glass (blur 26px, rgba(18,18,22,0.55)).
