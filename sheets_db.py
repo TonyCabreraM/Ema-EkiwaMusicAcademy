@@ -31,6 +31,7 @@ SCHEMAS = {
     "TeacherStudent": ["teacher_id", "student_id", "assigned_at"],
     "Schedules": ["id", "teacher_id", "student_id", "group_name", "day_of_week", "start_time", "end_time", "room", "notes", "created_at"],
     "PasswordRequests": ["id", "user_id", "username", "status", "created_at", "resolved_at"],
+    "TrialClasses": ["id", "teacher_id", "prospect_name", "phone", "date", "start_time", "end_time", "notes", "status", "created_at", "confirmed_at", "confirmed_by"],
 }
 
 _client = None

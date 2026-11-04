@@ -15,7 +15,7 @@
 </div>
 <div class="table-responsive">
 <table class="table table-striped">
-  <thead><tr><th>Nombre</th><th>Usuario</th><th>Especialidad</th><th>Teléfono</th><th>Alumnos</th><th></th></tr></thead>
+  <thead><tr><th>Nombre</th><th>Usuario</th><th>Especialidad</th><th>Teléfono</th><th>Alumnos</th><th>Clases muestra</th><th></th></tr></thead>
   <tbody>
   {% for t in teachers %}
     <tr>
@@ -24,6 +24,7 @@
       <td>{{ t.specialty or '-' }}</td>
       <td>{{ t.phone or '-' }}</td>
       <td>{{ teacher_students(t.get('id'))|length }}</td>
+      <td>{% set tt = teacher_trials(t.get('id')) %}{{ tt|selectattr('status', 'equalto', 'confirmed')|list|length }} / {{ tt|length }}</td>
       <td>
         <form method="POST" action="{{ url_for('delete_teacher', teacher_id=t.id) }}" onsubmit="return confirm('¿Eliminar maestro?');" style="display:inline;">
           <button class="btn btn-sm btn-danger">Eliminar</button>
@@ -31,7 +32,7 @@
       </td>
     </tr>
   {% else %}
-    <tr><td colspan="6" class="text-center text-muted">Sin maestros</td></tr>
+    <tr><td colspan="7" class="text-center text-muted">Sin maestros</td></tr>
   {% endfor %}
   </tbody>
 </table>

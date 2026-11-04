@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}Clases muestra{% endblock %}
+{% block content %}
+<h2 class="mb-3">Clases muestra</h2>
+<p class="text-muted">Confirma o rechaza las clases muestra registradas por los maestros.</p>
+
+<div class="table-responsive">
+<table class="table table-striped">
+  <thead>
+    <tr><th>Fecha</th><th>Hora</th><th>Maestro</th><th>Posible alumno</th><th>Teléfono</th><th>Notas</th><th>Estado</th><th>Acciones</th></tr>
+  </thead>
+  <tbody>
+  {% for t in trials %}
+    <tr>
+      <td>{{ t.date }}</td>
+      <td>{{ t.start_time }}{% if t.end_time %} - {{ t.end_time }}{% endif %}</td>
+      <td>{% set maestro = teacher_by_id(t.get('teacher_id')) %}{{ maestro.full_name if maestro else '-' }}</td>
+      <td>{{ t.prospect_name }}</td>
+      <td>{{ t.phone or '-' }}</td>
+      <td>{{ t.notes or '-' }}</td>
+      <td>
+        {% if t.status == 'confirmed' %}<span class="badge bg-success">Confirmada</span>
+        {% elif t.status == 'rejected' %}<span class="badge bg-secondary">Rechazada</span>
+        {% else %}<span class="badge bg-warning text-dark">Pendiente</span>{% endif %}
+      </td>
+      <td>
+        {% if t.status == 'pending' %}
+          <form method="POST" action="{{ url_for('confirm_trial_class', trial_id=t.get('id')) }}" class="d-inline">
+            <button class="btn btn-sm btn-success">Confirmar</button>
+          </form>
+          <form method="POST" action="{{ url_for('reject_trial_class', trial_id=t.get('id')) }}" class="d-inline">
+            <button class="btn btn-sm btn-outline-primary">Rechazar</button>
+          </form>
+        {% else %}
+          <span class="text-muted">{{ t.confirmed_by or '-' }}</span>
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="8" class="text-center text-muted">Sin clases muestra registradas</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

@@ -31,4 +31,55 @@
   </tbody>
 </table>
 </div>
+
+<h4 class="mt-4">Clases muestra</h4>
+<div class="row g-2 mb-3">
+  <div class="col-6 col-md-3">
+    <div class="card p-3 text-center">
+      <span class="display-6">{{ trials|selectattr('status', 'equalto', 'confirmed')|list|length }}</span>
+      <small class="text-muted">Confirmadas</small>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card p-3 text-center">
+      <span class="display-6">{{ trials|selectattr('status', 'equalto', 'pending')|list|length }}</span>
+      <small class="text-muted">Pendientes</small>
+    </div>
+  </div>
+</div>
+<div class="card p-3 mb-3">
+  <h5>Registrar clase muestra</h5>
+  <form method="POST" action="{{ url_for('create_trial_class') }}" class="row g-2">
+    <div class="col-md-3"><input name="prospect_name" class="form-control" placeholder="Nombre del posible alumno" required></div>
+    <div class="col-md-2"><input name="phone" class="form-control" placeholder="Teléfono"></div>
+    <div class="col-md-2"><input name="date" type="date" class="form-control" required></div>
+    <div class="col-md-2"><input name="start_time" type="time" class="form-control" required></div>
+    <div class="col-md-2"><input name="end_time" type="time" class="form-control"></div>
+    <div class="col-md-1"><button class="btn btn-primary w-100" type="submit">Registrar</button></div>
+    <div class="col-12"><input name="notes" class="form-control" placeholder="Notas (opcional)"></div>
+  </form>
+</div>
+
+<div class="table-responsive">
+<table class="table table-striped">
+  <thead><tr><th>Fecha</th><th>Hora</th><th>Posible alumno</th><th>Teléfono</th><th>Estado</th></tr></thead>
+  <tbody>
+  {% for t in trials %}
+    <tr>
+      <td>{{ t.date }}</td>
+      <td>{{ t.start_time }}{% if t.end_time %} - {{ t.end_time }}{% endif %}</td>
+      <td>{{ t.prospect_name }}</td>
+      <td>{{ t.phone or '-' }}</td>
+      <td>
+        {% if t.status == 'confirmed' %}<span class="badge bg-success">Confirmada</span>
+        {% elif t.status == 'rejected' %}<span class="badge bg-secondary">Rechazada</span>
+        {% else %}<span class="badge bg-warning text-dark">Pendiente</span>{% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5" class="text-center text-muted">Sin clases muestra registradas</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
 {% endblock %}

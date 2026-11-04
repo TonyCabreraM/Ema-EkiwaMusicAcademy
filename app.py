@@ -87,6 +87,10 @@ def student_schedules(student_id):
     return [s for s in db.all_records("Schedules") if str(s.get("student_id")) == str(student_id)]
 
 
+def teacher_trial_classes(teacher_id):
+    return [t for t in db.all_records("TrialClasses") if str(t.get("teacher_id")) == str(teacher_id)]
+
+
 def subject_name(sched):
     sid = sched.get("student_id")
     if sid and str(sid).strip():
@@ -498,6 +502,46 @@ def delete_schedule(sched_id):
     return redirect(url_for('director_schedules'))
 
 
+# ---------- Clases muestra (director) ----------
+@app.route('/director/trial-classes')
+@login_required
+@role_required('director')
+def director_trial_classes():
+    trials = db.all_records("TrialClasses")
+    trials.sort(key=lambda t: (t.get("status") != "pending", t.get("date", ""), t.get("start_time", "")), reverse=False)
+    return render_template('trial_classes.html', trials=trials)
+
+
+@app.route('/director/trial-classes/<int:trial_id>/confirm', methods=['POST'])
+@login_required
+@role_required('director')
+def confirm_trial_class(trial_id):
+    trial = db.get_by_id("TrialClasses", trial_id)
+    if trial and trial.get("status") == "pending":
+        db.update_record("TrialClasses", trial_id, {
+            "status": "confirmed",
+            "confirmed_at": datetime.utcnow().isoformat(),
+            "confirmed_by": g.user.get("username"),
+        })
+        flash('Clase muestra confirmada.', 'success')
+    return redirect(url_for('director_trial_classes'))
+
+
+@app.route('/director/trial-classes/<int:trial_id>/reject', methods=['POST'])
+@login_required
+@role_required('director')
+def reject_trial_class(trial_id):
+    trial = db.get_by_id("TrialClasses", trial_id)
+    if trial and trial.get("status") == "pending":
+        db.update_record("TrialClasses", trial_id, {
+            "status": "rejected",
+            "confirmed_at": datetime.utcnow().isoformat(),
+            "confirmed_by": g.user.get("username"),
+        })
+        flash('Clase muestra rechazada.', 'info')
+    return redirect(url_for('director_trial_classes'))
+
+
 # ---------- Teacher ----------
 @app.route('/teacher')
 @login_required
@@ -511,7 +555,41 @@ def teacher_dashboard():
     # enriquecer con subject_name
     for s in scheds:
         s["_subject"] = subject_name(s)
-    return render_template('teacher_dashboard.html', teacher=teacher, schedules=scheds)
+    trials = teacher_trial_classes(teacher.get("id"))
+    trials.sort(key=lambda t: (t.get("date", ""), t.get("start_time", "")), reverse=True)
+    return render_template('teacher_dashboard.html', teacher=teacher, schedules=scheds, trials=trials)
+
+
+@app.route('/teacher/trial-class', methods=['POST'])
+@login_required
+@role_required('teacher')
+def create_trial_class():
+    teacher = get_teacher_by_user(g.user.get("id"))
+    if not teacher:
+        flash('Perfil de maestro no encontrado.', 'danger')
+        return redirect(url_for('logout'))
+    prospect = request.form.get('prospect_name', '').strip()
+    date = request.form.get('date')
+    start = request.form.get('start_time')
+    end = request.form.get('end_time', '')
+    if not prospect or not date or not start:
+        flash('Nombre, fecha y hora son obligatorios.', 'danger')
+        return redirect(url_for('teacher_dashboard'))
+    db.append_record("TrialClasses", {
+        "teacher_id": teacher.get("id"),
+        "prospect_name": prospect,
+        "phone": request.form.get('phone', ''),
+        "date": date,
+        "start_time": start,
+        "end_time": end,
+        "notes": request.form.get('notes', ''),
+        "status": "pending",
+        "created_at": datetime.utcnow().isoformat(),
+        "confirmed_at": "",
+        "confirmed_by": "",
+    })
+    flash('Clase muestra registrada. Queda pendiente de confirmación del director.', 'success')
+    return redirect(url_for('teacher_dashboard'))
 
 
 # ---------- Student / Parent ----------
@@ -537,6 +615,7 @@ def inject_helpers():
         subject_name=subject_name,
         teacher_by_id=lambda tid: db.get_by_id("Teachers", tid) if tid else None,
         student_by_id=lambda sid: db.get_by_id("Students", sid) if sid else None,
+        teacher_trials=lambda tid: teacher_trial_classes(tid),
         DAYS=DAYS,
     )
 
