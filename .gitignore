@@ -25,6 +25,10 @@ backups/
 *.jpg
 *.jpeg
 *.png
+# Permitir assets de la interfaz
+!static/*.jpg
+!static/*.jpeg
+!static/*.png
 
 # Tooling and OS files
 .pytest_cache/
