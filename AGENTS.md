@@ -28,3 +28,4 @@ Esta sección se actualiza con las cosas que el usuario pide recordar. Cada entr
 - 2026-11-04: Fondo: static/Background01.jpg (patrón de guitarras EMA) con tarjetas/tablas de cristal esmerilado (backdrop-filter blur).
 - 2026-11-04: Tipografías locales: Alfa Slab One (encabezados) y Roboto Slab (texto), servidas desde static/fonts. Tablas con texto blanco (variables --bs-table-*).
 - 2026-11-04: Responsive móvil: navbar toggler, tablas con .table-responsive y media queries en style.css.
+- 2026-11-04: Contraseñas: cada usuario cambia la suya en /account/password; recuperación en /forgot genera solicitud en hoja PasswordRequests que el director aprueba (/director/password-requests) generando contraseña temporal. Menú móvil ahora absoluto (se superpone).
