@@ -52,6 +52,11 @@
     {% endif %}
   {% endwith %}
   {% block content %}{% endblock %}
+  {% if session.get('role') in ['director', 'admin'] %}
+    <div class="text-center mt-4 mb-3">
+      <a class="small" href="{{ url_for('diagnostics') }}">Diagnóstico de base de datos</a>
+    </div>
+  {% endif %}
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>

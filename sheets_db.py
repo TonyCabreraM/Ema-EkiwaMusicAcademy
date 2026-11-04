@@ -67,6 +67,11 @@ def get_spreadsheet():
     return _spreadsheet
 
 
+def service_account_email():
+    """Correo de la service account (útil para compartir el Sheet como Editor)."""
+    return _get_credentials().service_account_email
+
+
 def get_worksheet(name):
     if name in _worksheets:
         return _worksheets[name]

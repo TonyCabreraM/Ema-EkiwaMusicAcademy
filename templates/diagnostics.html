@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}Diagnóstico{% endblock %}
+{% block content %}
+<h2 class="mb-3">Diagnóstico de la base de datos</h2>
+<p class="text-muted">Comprueba la conexión con Google Sheets (lectura y escritura).</p>
+
+<div class="card p-3 mb-3">
+  <p class="mb-1"><strong>Spreadsheet ID:</strong> {{ info.sheet }}</p>
+  <p class="mb-1"><strong>Service account:</strong> {{ info.email or 'No disponible' }}</p>
+  <p class="mb-0 text-muted small">El Sheet debe estar compartido como <strong>Editor</strong> con ese correo.</p>
+</div>
+
+<form method="POST" class="mb-3">
+  <button class="btn btn-primary" type="submit">Ejecutar diagnóstico</button>
+</form>
+
+{% if info.read %}
+  <div class="alert alert-success">{{ info.read }}</div>
+{% endif %}
+{% if info.write %}
+  <div class="alert alert-success">{{ info.write }}</div>
+{% endif %}
+{% if info.error %}
+  <div class="alert alert-danger">{{ info.error }}</div>
+{% endif %}
+{% endblock %}

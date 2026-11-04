@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Error{% endblock %}
+{% block content %}
+<div class="card p-4">
+  <h3 class="mb-3">Ocurrió un error</h3>
+  <p class="mb-2">La operación no se pudo completar. Detalle técnico:</p>
+  <pre class="p-3 rounded" style="background: rgba(0,0,0,0.35); color:#fff; white-space: pre-wrap; word-break: break-word;">{{ detail }}</pre>
+  <ul class="text-muted small mb-3">
+    <li>Verifica que el Google Sheet esté compartido como <strong>Editor</strong> con la service account.</li>
+    <li>Verifica que las APIs de Google Sheets y Drive estén habilitadas en Google Cloud.</li>
+    <li>Si el mensaje menciona cuota (429), espera un minuto y vuelve a intentar.</li>
+  </ul>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('home') }}" class="btn btn-primary">Volver al inicio</a>
+    {% if session.get('role') in ['director', 'admin'] %}
+      <a href="{{ url_for('diagnostics') }}" class="btn btn-outline-primary">Ejecutar diagnóstico</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

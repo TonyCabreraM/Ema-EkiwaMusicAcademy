@@ -5,12 +5,23 @@ from functools import wraps
 from datetime import datetime
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, g
+from werkzeug.exceptions import HTTPException
 from werkzeug.security import generate_password_hash, check_password_hash
 
 import sheets_db as db
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-change-me')
+
+
+@app.errorhandler(Exception)
+def handle_unexpected_error(e):
+    """Muestra un mensaje entendible en lugar del 500 genérico."""
+    if isinstance(e, HTTPException):
+        return e.get_response()
+    app.logger.exception('Error no controlado')
+    detail = f'{type(e).__name__}: {e}'
+    return render_template('error.html', detail=detail), 500
 
 db.init_db()
 
@@ -271,15 +282,20 @@ def admin_users():
         if any(u.get("username") == username for u in db.all_records("Users")):
             flash('El usuario ya existe.', 'danger')
             return redirect(url_for('admin_users'))
-        db.append_record("Users", {
-            "username": username,
-            "password_hash": generate_password_hash(password),
-            "role": role,
-            "is_active": True,
-            "created_at": datetime.utcnow().isoformat(),
-            "teacher_id": "",
-            "student_id": "",
-        })
+        try:
+            db.append_record("Users", {
+                "username": username,
+                "password_hash": generate_password_hash(password),
+                "role": role,
+                "is_active": True,
+                "created_at": datetime.utcnow().isoformat(),
+                "teacher_id": "",
+                "student_id": "",
+            })
+        except Exception as exc:
+            app.logger.exception('No se pudo crear el usuario en Google Sheets')
+            flash(f'No se pudo guardar en Google Sheets: {exc}', 'danger')
+            return redirect(url_for('admin_users'))
         flash(f'Usuario {ROLE_LABELS.get(role, role)} "{username}" creado.', 'success')
         return redirect(url_for('admin_users'))
 
@@ -306,6 +322,54 @@ def delete_admin_user(user_id):
     db.delete_record("Users", user_id)
     flash(f'Usuario "{user.get("username")}" eliminado.', 'info')
     return redirect(url_for('admin_users'))
+
+
+# ---------- Diagnóstico de la base de datos ----------
+@app.route('/director/diagnostics', methods=['GET', 'POST'])
+@login_required
+@role_required('director')
+def diagnostics():
+    info = {'email': None, 'sheet': db.SPREADSHEET_ID, 'read': None, 'write': None, 'error': None}
+    try:
+        info['email'] = db.service_account_email()
+    except Exception as exc:
+        info['error'] = f'No se pudieron cargar las credenciales: {type(exc).__name__}: {exc}'
+
+    if request.method == 'POST':
+        # 1) Prueba de lectura
+        try:
+            ss = db.get_spreadsheet()
+            info['sheet'] = f'{ss.title} ({db.SPREADSHEET_ID})'
+            counts = []
+            for name in db.SCHEMAS:
+                counts.append(f'{name}={len(db.all_records(name))}')
+            info['read'] = 'Lectura OK: ' + ', '.join(counts)
+        except Exception as exc:
+            app.logger.exception('Diagnóstico: fallo de lectura')
+            info['error'] = f'Lectura: {type(exc).__name__}: {exc}'
+
+        # 2) Prueba de escritura (crea y elimina un registro de prueba)
+        try:
+            test_id = db.append_record("TrialClasses", {
+                "teacher_id": "",
+                "prospect_name": "PRUEBA DE DIAGNOSTICO",
+                "phone": "",
+                "date": datetime.utcnow().date().isoformat(),
+                "start_time": "00:00",
+                "end_time": "",
+                "notes": "Registro de prueba; se elimina automáticamente.",
+                "status": "test",
+                "created_at": datetime.utcnow().isoformat(),
+                "confirmed_at": "",
+                "confirmed_by": "",
+            })
+            db.delete_record("TrialClasses", test_id)
+            info['write'] = f'Escritura OK (registro de prueba {test_id} creado y eliminado)'
+        except Exception as exc:
+            app.logger.exception('Diagnóstico: fallo de escritura')
+            info['error'] = f'Escritura: {type(exc).__name__}: {exc}'
+
+    return render_template('diagnostics.html', info=info)
 
 
 # ---------- Director ----------
@@ -642,19 +706,24 @@ def create_trial_class():
     if not date or not start:
         flash('La fecha y la hora de inicio son obligatorias.', 'danger')
         return redirect(url_for('teacher_dashboard'))
-    db.append_record("TrialClasses", {
-        "teacher_id": teacher.get("id"),
-        "prospect_name": "Clase muestra",
-        "phone": "",
-        "date": date,
-        "start_time": start,
-        "end_time": "",
-        "notes": "",
-        "status": "pending",
-        "created_at": datetime.utcnow().isoformat(),
-        "confirmed_at": "",
-        "confirmed_by": "",
-    })
+    try:
+        db.append_record("TrialClasses", {
+            "teacher_id": teacher.get("id"),
+            "prospect_name": "Clase muestra",
+            "phone": "",
+            "date": date,
+            "start_time": start,
+            "end_time": "",
+            "notes": "",
+            "status": "pending",
+            "created_at": datetime.utcnow().isoformat(),
+            "confirmed_at": "",
+            "confirmed_by": "",
+        })
+    except Exception as exc:
+        app.logger.exception('No se pudo registrar la clase muestra en Google Sheets')
+        flash(f'No se pudo guardar en Google Sheets: {exc}', 'danger')
+        return redirect(url_for('teacher_dashboard'))
     flash('Clase muestra registrada. Queda pendiente de confirmación del director.', 'success')
     return redirect(url_for('teacher_dashboard'))
 
