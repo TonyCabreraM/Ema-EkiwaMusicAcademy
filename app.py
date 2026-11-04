@@ -499,40 +499,17 @@ def director_students():
         if not full_name:
             flash('El nombre es obligatorio.', 'danger')
             return redirect(url_for('director_students'))
-        create_login = request.form.get('create_login') == 'on'
-        uid = ""
-        if create_login:
-            username = request.form.get('username', '').strip()
-            password = request.form.get('password', '').strip()
-            if not username or not password:
-                flash('Usuario y contraseña son obligatorios para crear login.', 'danger')
-                return redirect(url_for('director_students'))
-            if any(u.get("username") == username for u in db.all_records("Users")):
-                flash('El usuario ya existe.', 'danger')
-                return redirect(url_for('director_students'))
-            uid = db.append_record("Users", {
-                "username": username,
-                "password_hash": generate_password_hash(password),
-                "role": "student",
-                "is_active": True,
-                "created_at": datetime.utcnow().isoformat(),
-                "teacher_id": "",
-                "student_id": "",
-            })
         sid = db.append_record("Students", {
-            "user_id": uid,
+            "user_id": "",
             "full_name": full_name,
-            "phone": request.form.get('phone', ''),
-            "email": request.form.get('email', ''),
+            "phone": "",
+            "email": "",
             "parent_name": request.form.get('parent_name', ''),
             "parent_phone": request.form.get('parent_phone', ''),
-            "parent_email": request.form.get('parent_email', ''),
+            "parent_email": "",
             "notes": request.form.get('notes', ''),
             "created_at": datetime.utcnow().isoformat(),
         })
-        # vincular user.student_id
-        if uid:
-            db.update_record("Users", uid, {"student_id": sid})
 
         # Asignación de maestro (opcional)
         teacher_id = request.form.get('teacher_id', type=int)
@@ -567,9 +544,32 @@ def director_students():
 
         flash('Alumno creado.', 'success')
         return redirect(url_for('director_students'))
+
+    period = (request.args.get('period') or current_period()).strip()
     students = db.all_records("Students")
     teachers = db.all_records("Teachers")
-    return render_template('students.html', students=students, teachers=teachers)
+
+    payments = [p for p in db.all_records("Payments") if str(p.get('period')) == str(period)]
+    by_student = {str(p.get('student_id')): p for p in payments}
+    payments_by_student = {}
+    counts = {'pending': 0, 'declared': 0, 'paid': 0}
+    for s in students:
+        p = by_student.get(str(s.get('id')))
+        status = (p or {}).get('status') or 'pending'
+        if status not in counts:
+            status = 'pending'
+        counts[status] += 1
+        payments_by_student[str(s.get('id'))] = {'payment': p, 'status': status}
+
+    all_periods = {current_period()}
+    for p in db.all_records("Payments"):
+        if p.get('period'):
+            all_periods.add(str(p.get('period')))
+    periods = sorted(all_periods, reverse=True)
+
+    return render_template('students.html', students=students, teachers=teachers,
+                           period=period, period_label=period_label(period),
+                           payments_by_student=payments_by_student, counts=counts, periods=periods)
 
 
 @app.route('/director/students/<int:student_id>/delete', methods=['POST'])
@@ -733,40 +733,19 @@ def delete_trial_class(trial_id):
     return redirect(url_for('director_trial_classes'))
 
 
-# ---------- Pagos mensuales (director) ----------
+# ---------- Pagos mensuales (desde la pestaña Alumnos) ----------
 @app.route('/director/payments')
 @login_required
 @role_required('director')
 def director_payments():
-    period = (request.args.get('period') or current_period()).strip()
-    students = sorted(db.all_records("Students"), key=lambda s: (s.get('full_name') or '').lower())
-    payments = [p for p in db.all_records("Payments") if str(p.get('period')) == str(period)]
-    by_student = {str(p.get('student_id')): p for p in payments}
-
-    rows = []
-    counts = {'pending': 0, 'declared': 0, 'paid': 0}
-    for s in students:
-        p = by_student.get(str(s.get('id')))
-        status = (p or {}).get('status') or 'pending'
-        if status not in counts:
-            status = 'pending'
-        counts[status] += 1
-        rows.append({'student': s, 'payment': p, 'status': status})
-
-    all_periods = {current_period()}
-    for p in db.all_records("Payments"):
-        if p.get('period'):
-            all_periods.add(str(p.get('period')))
-    periods = sorted(all_periods, reverse=True)
-
-    return render_template('payments.html', rows=rows, counts=counts, period=period,
-                           period_label=period_label(period), periods=periods)
+    """Compatibilidad: la gestión de pagos ahora vive en la pestaña Alumnos."""
+    return redirect(url_for('director_students', period=request.args.get('period', '')))
 
 
-@app.route('/director/payments/<int:student_id>/mark', methods=['POST'])
+@app.route('/director/students/<int:student_id>/payment/mark', methods=['POST'])
 @login_required
 @role_required('director')
-def mark_payment(student_id):
+def mark_student_payment(student_id):
     period = (request.form.get('period') or current_period()).strip()
     status = request.form.get('status', 'paid')
     if status not in ('paid', 'pending'):
@@ -774,7 +753,7 @@ def mark_payment(student_id):
     student = db.get_by_id("Students", student_id)
     if not student:
         flash('Alumno no encontrado.', 'danger')
-        return redirect(url_for('director_payments', period=period))
+        return redirect(url_for('director_students', period=period))
 
     now = datetime.utcnow().isoformat()
     existing = get_payment(student_id, period)
@@ -798,10 +777,10 @@ def mark_payment(student_id):
     except Exception as exc:
         app.logger.exception('No se pudo actualizar el pago en Google Sheets')
         flash(f'No se pudo guardar en Google Sheets: {exc}', 'danger')
-        return redirect(url_for('director_payments', period=period))
+        return redirect(url_for('director_students', period=period))
 
     flash(f'Pago de {student.get("full_name")} marcado como {"pagado" if status == "paid" else "pendiente"}.', 'success')
-    return redirect(url_for('director_payments', period=period))
+    return redirect(url_for('director_students', period=period))
 
 
 # ---------- Teacher ----------

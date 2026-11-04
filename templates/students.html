@@ -5,35 +5,24 @@
 <div class="card p-3 mb-4">
   <h5>Nuevo alumno</h5>
   <form method="POST" class="row g-2">
-    <div class="col-md-3"><input name="full_name" class="form-control" placeholder="Nombre completo" required></div>
-    <div class="col-md-2"><input name="parent_name" class="form-control" placeholder="Padre/Madre"></div>
-    <div class="col-md-2"><input name="parent_phone" class="form-control" placeholder="Tel. padre"></div>
-    <div class="col-md-2"><input name="phone" class="form-control" placeholder="Tel. alumno"></div>
-    <div class="col-md-2"><input name="email" class="form-control" placeholder="Email"></div>
+    <div class="col-md-4"><input name="full_name" class="form-control" placeholder="Nombre completo" required></div>
+    <div class="col-md-3"><input name="parent_name" class="form-control" placeholder="Padre/Madre"></div>
+    <div class="col-md-3"><input name="parent_phone" class="form-control" placeholder="Tel. padre/madre"></div>
     <div class="col-md-3">
       <select name="teacher_id" class="form-select">
         <option value="">Maestro (opcional)</option>
         {% for t in teachers %}<option value="{{ t.get('id') }}">{{ t.full_name }}</option>{% endfor %}
       </select>
     </div>
-    <div class="col-md-2">
+    <div class="col-md-3">
       <select name="day_of_week" class="form-select">
         <option value="">Día (opcional)</option>
         {% for d in DAYS %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
       </select>
     </div>
-    <div class="col-md-2"><input name="start_time" type="time" class="form-control" placeholder="Inicio"></div>
-    <div class="col-md-2"><input name="end_time" type="time" class="form-control" placeholder="Fin"></div>
-    <div class="col-md-2"><input name="room" class="form-control" placeholder="Sala"></div>
-    <div class="col-md-1"><button class="btn btn-primary w-100" type="submit">Crear</button></div>
-    <div class="col-12 mt-2">
-      <div class="form-check">
-        <input class="form-check-input" type="checkbox" name="create_login" id="cl">
-        <label class="form-check-label" for="cl">Crear login para alumno/padre</label>
-      </div>
-    </div>
-    <div class="col-md-3"><input name="username" class="form-control" placeholder="Usuario (si login)"></div>
-    <div class="col-md-3"><input name="password" type="password" class="form-control" placeholder="Contraseña (si login)"></div>
+    <div class="col-md-3"><input name="start_time" type="time" class="form-control" placeholder="Inicio"></div>
+    <div class="col-md-3"><input name="end_time" type="time" class="form-control" placeholder="Fin"></div>
+    <div class="col-12 col-md-3"><button class="btn btn-primary w-100" type="submit">Crear</button></div>
   </form>
 </div>
 
@@ -54,15 +43,35 @@
   <div class="col-md-2"><button class="btn btn-success w-100" type="submit">Asignar</button></div>
 </form>
 
+<h5 class="mt-4">Pagos del mes</h5>
+<div class="card p-3 mb-3">
+  <form method="GET" class="row g-2 align-items-end">
+    <div class="col-12 col-md-4">
+      <label class="form-label">Mes y año</label>
+      <input type="month" name="period" class="form-control" value="{{ period }}">
+    </div>
+    <div class="col-12 col-md-3">
+      <button class="btn btn-primary w-100" type="submit">Ver mes</button>
+    </div>
+    <div class="col-12 col-md-5 d-flex flex-wrap gap-2 pb-1">
+      <span class="badge bg-danger">Pendientes: {{ counts.pending }}</span>
+      <span class="badge bg-warning text-dark">Declarados: {{ counts.declared }}</span>
+      <span class="badge bg-success">Pagados: {{ counts.paid }}</span>
+    </div>
+  </form>
+  <p class="text-muted small mb-0 mt-2">{{ period_label }}: al inicio de cada mes los alumnos aparecen en rojo (pendiente); pasa a amarillo cuando el alumno registra su pago y a verde cuando tú lo confirmas.</p>
+</div>
+
 <div class="table-responsive">
 <table class="table table-striped">
-  <thead><tr><th>Alumno</th><th>Padre/Madre</th><th>Tel.</th><th>Maestros</th><th></th></tr></thead>
+  <thead><tr><th>Alumno</th><th>Padre/Madre</th><th>Tel.</th><th>Maestros</th><th>Pago ({{ period_label }})</th><th></th></tr></thead>
   <tbody>
   {% for s in students %}
+    {% set pay = payments_by_student.get(s.get('id')|string) %}
     <tr>
       <td>{{ s.full_name }}</td>
       <td>{{ s.parent_name or '-' }}</td>
-      <td>{{ s.phone or s.parent_phone or '-' }}</td>
+      <td>{{ s.parent_phone or s.phone or '-' }}</td>
       <td>
         {% for t in student_teachers(s.get('id')) %}
           <span class="badge bg-secondary">{{ t.full_name }}</span>
@@ -74,13 +83,35 @@
         {% else %}-{% endfor %}
       </td>
       <td>
-        <form method="POST" action="{{ url_for('delete_student', student_id=s.id) }}" onsubmit="return confirm('¿Eliminar alumno?');" style="display:inline;">
+        {% if pay and pay.status == 'paid' %}
+          <span class="badge bg-success">Pagado</span>
+        {% elif pay and pay.status == 'declared' %}
+          <span class="badge bg-warning text-dark">Declarado</span>
+        {% else %}
+          <span class="badge bg-danger">Pendiente</span>
+        {% endif %}
+      </td>
+      <td class="d-flex flex-wrap gap-1">
+        {% if pay and pay.status == 'paid' %}
+          <form method="POST" action="{{ url_for('mark_student_payment', student_id=s.get('id')) }}" class="d-inline">
+            <input type="hidden" name="period" value="{{ period }}">
+            <input type="hidden" name="status" value="pending">
+            <button class="btn btn-sm btn-outline-primary">Marcar pendiente</button>
+          </form>
+        {% else %}
+          <form method="POST" action="{{ url_for('mark_student_payment', student_id=s.get('id')) }}" class="d-inline">
+            <input type="hidden" name="period" value="{{ period }}">
+            <input type="hidden" name="status" value="paid">
+            <button class="btn btn-sm btn-success">Marcar pagado</button>
+          </form>
+        {% endif %}
+        <form method="POST" action="{{ url_for('delete_student', student_id=s.id) }}" onsubmit="return confirm('¿Eliminar alumno?');" class="d-inline">
           <button class="btn btn-sm btn-danger">Eliminar</button>
         </form>
       </td>
     </tr>
   {% else %}
-    <tr><td colspan="5" class="text-center text-muted">Sin alumnos</td></tr>
+    <tr><td colspan="6" class="text-center text-muted">Sin alumnos</td></tr>
   {% endfor %}
   </tbody>
 </table>
