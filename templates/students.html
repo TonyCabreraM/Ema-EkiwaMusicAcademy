@@ -64,7 +64,7 @@
 
 <div class="table-responsive">
 <table class="table table-striped">
-  <thead><tr><th>Alumno</th><th>Padre/Madre</th><th>Tel.</th><th>Maestros</th><th>Pago ({{ period_label }})</th><th></th></tr></thead>
+  <thead><tr><th>Alumno</th><th>Padre/Madre</th><th>Tel.</th><th>Maestros</th><th>Pago del mes</th><th></th></tr></thead>
   <tbody>
   {% for s in students %}
     {% set pay = payments_by_student.get(s.get('id')|string) %}
