@@ -32,7 +32,11 @@ def role_required(*roles):
         def wrapped(*args, **kwargs):
             if 'user_id' not in session:
                 return redirect(url_for('login'))
-            if session.get('role') not in roles:
+            allowed = set(roles)
+            # El administrador tiene los mismos permisos que el director
+            if 'director' in allowed:
+                allowed.add('admin')
+            if session.get('role') not in allowed:
                 flash('No tienes permisos para esta sección.', 'danger')
                 return redirect(url_for('home'))
             return f(*args, **kwargs)
@@ -106,7 +110,7 @@ def home():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     role = session.get('role')
-    if role == 'director':
+    if role in ('director', 'admin'):
         return redirect(url_for('director_dashboard'))
     if role == 'teacher':
         return redirect(url_for('teacher_dashboard'))
@@ -237,6 +241,71 @@ def reject_password_request(req_id):
         })
         flash('Solicitud rechazada.', 'info')
     return redirect(url_for('password_requests'))
+
+
+# ---------- Usuarios administradores ----------
+ROLE_LABELS = {
+    'director': 'Director',
+    'admin': 'Administrador',
+    'teacher': 'Maestro',
+    'student': 'Alumno',
+}
+
+
+@app.route('/director/users', methods=['GET', 'POST'])
+@login_required
+@role_required('director')
+def admin_users():
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        role = request.form.get('role', 'admin').strip() or 'admin'
+        if role not in ('admin', 'director'):
+            role = 'admin'
+        if not username or not password:
+            flash('Usuario y contraseña son obligatorios.', 'danger')
+            return redirect(url_for('admin_users'))
+        if len(password) < 6:
+            flash('La contraseña debe tener al menos 6 caracteres.', 'danger')
+            return redirect(url_for('admin_users'))
+        if any(u.get("username") == username for u in db.all_records("Users")):
+            flash('El usuario ya existe.', 'danger')
+            return redirect(url_for('admin_users'))
+        db.append_record("Users", {
+            "username": username,
+            "password_hash": generate_password_hash(password),
+            "role": role,
+            "is_active": True,
+            "created_at": datetime.utcnow().isoformat(),
+            "teacher_id": "",
+            "student_id": "",
+        })
+        flash(f'Usuario {ROLE_LABELS.get(role, role)} "{username}" creado.', 'success')
+        return redirect(url_for('admin_users'))
+
+    users = db.all_records("Users")
+    order = {'director': 0, 'admin': 1, 'teacher': 2, 'student': 3}
+    users.sort(key=lambda u: (order.get(u.get('role'), 9), u.get('username', '')))
+    return render_template('admin_users.html', users=users)
+
+
+@app.route('/director/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+@role_required('director')
+def delete_admin_user(user_id):
+    user = db.get_by_id("Users", user_id)
+    if not user:
+        flash('Usuario no encontrado.', 'danger')
+        return redirect(url_for('admin_users'))
+    if str(user.get('id')) == str(session.get('user_id')):
+        flash('No puedes eliminar tu propio usuario.', 'danger')
+        return redirect(url_for('admin_users'))
+    if user.get('role') not in ('admin', 'director'):
+        flash('Solo se pueden eliminar usuarios administradores desde esta sección.', 'danger')
+        return redirect(url_for('admin_users'))
+    db.delete_record("Users", user_id)
+    flash(f'Usuario "{user.get("username")}" eliminado.', 'info')
+    return redirect(url_for('admin_users'))
 
 
 # ---------- Director ----------
@@ -616,6 +685,7 @@ def inject_helpers():
         teacher_by_id=lambda tid: db.get_by_id("Teachers", tid) if tid else None,
         student_by_id=lambda sid: db.get_by_id("Students", sid) if sid else None,
         teacher_trials=lambda tid: teacher_trial_classes(tid),
+        ROLE_LABELS=ROLE_LABELS,
         DAYS=DAYS,
     )
 

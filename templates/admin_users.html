@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}Usuarios administradores{% endblock %}
+{% block content %}
+<h2 class="mb-3">Usuarios administradores</h2>
+<p class="text-muted">Crea usuarios con nivel de administrador. El administrador tiene los mismos permisos que el director.</p>
+
+<div class="card p-3 mb-4">
+  <h5>Nuevo usuario administrador</h5>
+  <form method="POST" class="row g-2">
+    <div class="col-md-4"><input name="username" class="form-control" placeholder="Usuario" required></div>
+    <div class="col-md-4"><input name="password" type="password" class="form-control" placeholder="Contraseña (mín. 6)" minlength="6" required></div>
+    <div class="col-md-2">
+      <select name="role" class="form-select">
+        <option value="admin">Administrador</option>
+        <option value="director">Director</option>
+      </select>
+    </div>
+    <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Crear</button></div>
+  </form>
+</div>
+
+<div class="table-responsive">
+<table class="table table-striped">
+  <thead><tr><th>Usuario</th><th>Rol</th><th>Activo</th><th>Creado</th><th></th></tr></thead>
+  <tbody>
+  {% for u in users %}
+    <tr>
+      <td>{{ u.username }}</td>
+      <td>
+        {% if u.role == 'director' %}<span class="badge bg-danger">{{ ROLE_LABELS.get(u.role, u.role) }}</span>
+        {% elif u.role == 'admin' %}<span class="badge bg-warning text-dark">{{ ROLE_LABELS.get(u.role, u.role) }}</span>
+        {% else %}<span class="badge bg-secondary">{{ ROLE_LABELS.get(u.role, u.role) }}</span>{% endif %}
+      </td>
+      <td>{{ 'Sí' if u.is_active in [true, 'TRUE', 'True', '1'] else 'No' }}</td>
+      <td>{{ u.created_at or '-' }}</td>
+      <td>
+        {% if u.role in ['admin', 'director'] and u.id|string != session.get('user_id')|string %}
+          <form method="POST" action="{{ url_for('delete_admin_user', user_id=u.get('id')) }}" onsubmit="return confirm('¿Eliminar usuario?');" style="display:inline;">
+            <button class="btn btn-sm btn-danger">Eliminar</button>
+          </form>
+        {% else %}
+          <span class="text-muted">-</span>
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5" class="text-center text-muted">Sin usuarios</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

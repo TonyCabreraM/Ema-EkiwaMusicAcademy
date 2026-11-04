@@ -16,13 +16,14 @@
     </button>
     <div class="collapse navbar-collapse" id="mainNav">
       <ul class="navbar-nav me-auto">
-        {% if session.get('role') == 'director' %}
+        {% if session.get('role') in ['director', 'admin'] %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('director_dashboard') }}">Dashboard</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('director_teachers') }}">Maestros</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('director_students') }}">Alumnos</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('director_schedules') }}">Horarios</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('director_trial_classes') }}">Clases muestra</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('password_requests') }}">Solicitudes</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_users') }}">Usuarios</a></li>
         {% elif session.get('role') == 'teacher' %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('teacher_dashboard') }}">Mi panel</a></li>
         {% elif session.get('role') == 'student' %}
@@ -32,7 +33,7 @@
       <ul class="navbar-nav">
         {% if session.get('user_id') %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('account_password') }}">Mi cuenta</a></li>
-          <li class="nav-item"><span class="nav-link text-light">{{ session.get('role') }}</span></li>
+          <li class="nav-item"><span class="nav-link text-light">{{ ROLE_LABELS.get(session.get('role'), session.get('role')) }}</span></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Salir</a></li>
         {% endif %}
       </ul>
